@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+streamlit
+pandas
+duckdb
+plotly
+python-dotenv
+langchain
+langchain-google-genai
