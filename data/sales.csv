@@ -1,0 +1,11 @@
+customer_id,customer_name,region,product,revenue,date
+1,Amit,West,Laptop,55000,2024-01-15
+2,Riya,North,Phone,25000,2024-01-18
+3,John,South,Tablet,18000,2024-02-05
+4,Sara,West,Laptop,62000,2024-02-20
+5,Ali,East,Phone,27000,2024-03-10
+6,Neha,North,Laptop,59000,2024-03-22
+7,David,South,Tablet,21000,2024-04-02
+8,Karan,West,Phone,24000,2024-04-15
+9,Priya,East,Laptop,61000,2024-05-01
+10,Arjun,North,Tablet,20000,2024-05-12
