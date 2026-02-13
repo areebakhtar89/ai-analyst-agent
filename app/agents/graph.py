@@ -10,14 +10,14 @@ def build_graph():
     workflow = StateGraph(AgentState)
 
     workflow.add_node("planner", planner_node)
-    workflow.add_node("sql", sql_node)
+    workflow.add_node("sql_agent", sql_node)
     workflow.add_node("analysis", analysis_node)
     workflow.add_node("viz", visualization_node)
 
     workflow.set_entry_point("planner")
 
-    workflow.add_edge("planner", "sql")
-    workflow.add_edge("sql", "analysis")
+    workflow.add_edge("planner", "sql_agent")
+    workflow.add_edge("sql_agent", "analysis")
     workflow.add_edge("analysis", "viz")
     workflow.add_edge("viz", END)
 
