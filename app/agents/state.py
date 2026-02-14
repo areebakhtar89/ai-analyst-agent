@@ -8,3 +8,4 @@ class AgentState(TypedDict):
     result: List[Dict[str, Any]]
     insights: str
     chart_path: str
+    chart_type: str

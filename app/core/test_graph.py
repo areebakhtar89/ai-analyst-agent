@@ -4,7 +4,7 @@ if __name__ == "__main__":
     graph = build_graph()
 
     state = {
-        "question": "Year over year revenue growth",
+        "question": "Monthly revenue trend",
         "plan": "",
         "sql": "",
         "result": [],
