@@ -63,13 +63,13 @@ Return JSON only:
     except Exception as e:
         print("Visualization LLM failed, using fallback:", e)
 
-    # Generate chart
-    if chart_type == "line":
-        fig = px.line(df, x=x, y=y, title="Auto-generated chart")
-    elif chart_type == "scatter":
-        fig = px.scatter(df, x=x, y=y, title="Auto-generated chart")
-    else:
-        fig = px.bar(df, x=x, y=y, title="Auto-generated chart")
+        # Generate chart
+        if chart_type == "line":
+            fig = px.line(df, x=x, y=y, title="Auto-generated chart")
+        elif chart_type == "scatter":
+            fig = px.scatter(df, x=x, y=y, title="Auto-generated chart")
+        else:
+            fig = px.bar(df, x=x, y=y, title="Auto-generated chart")
 
     chart_path = "data/chart.html"
     fig.write_html(chart_path)
