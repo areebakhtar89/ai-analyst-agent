@@ -3,18 +3,17 @@
 import re
 from app.core.llm import get_llm
 from app.tools.sql_tool import execute_sql
+from app.core.table_retriever import get_relevant_tables
+from app.core.schema_metadata import SCHEMA_METADATA
 
-SCHEMA = """
-Table: sales
-Columns:
-- customer_id (int)
-- customer_name (text)
-- region (text)
-- product (text)
-- revenue (int)
-- date (date)
-"""
-
+def build_schema_context(tables):
+    context = ""
+    for table in SCHEMA_METADATA:
+        if table["table"] in tables:
+            context += f"\nTable: {table['table']}\n"
+            for col, desc in table["columns"].items():
+                context += f"- {col}: {desc}\n"
+    return context
 
 def clean_sql(sql: str) -> str:
     # Remove ```sql or ``` wrappers
@@ -26,27 +25,31 @@ def clean_sql(sql: str) -> str:
 def generate_sql(question: str):
     llm = get_llm()
 
+    relevant_tables = get_relevant_tables(question)
+    schema_context = build_schema_context(relevant_tables)
+
     prompt = f"""
-You are a data analyst.
+    You are a senior data analyst.
 
-Convert the user question into a SQL query.
+    Convert the user question into a SQL query.
 
-Rules:
-- Use only the provided table.
-- Return only SQL.
-- Do not explain anything.
-- Do not use markdown or code blocks.
+    Rules:
+    - Use only the provided tables.
+    - Use joins where needed.
+    - Use EXTRACT(YEAR FROM column) for year calculations.
+    - Return only SQL.
+    - Do not use markdown.
+    
+    Available tables:
+    {schema_context}
 
-{SCHEMA}
-
-User question:
-{question}
-"""
+    User question:
+    {question}
+    """
 
     response = llm.invoke(prompt)
     sql = clean_sql(response.content)
     return sql
-
 
 def run_agent(question: str):
     sql = generate_sql(question)

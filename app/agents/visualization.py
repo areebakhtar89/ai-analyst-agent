@@ -4,23 +4,30 @@ from app.agents.state import AgentState
 
 
 def visualization_node(state: AgentState) -> AgentState:
-    if not state["result"]:
+    result = state.get("result")
+
+    # Handle error or empty result
+    if not result or isinstance(result, dict):
         state["chart_path"] = ""
         return state
 
-    df = pd.DataFrame(state["result"])
-
-    # Simple heuristic: bar chart if 2 columns
-    if df.shape[1] >= 2:
-        x = df.columns[0]
-        y = df.columns[1]
-
-        fig = px.bar(df, x=x, y=y, title="Auto-generated chart")
-        chart_path = "data/chart.html"
-        fig.write_html(chart_path)
-
-        state["chart_path"] = chart_path
-    else:
+    try:
+        df = pd.DataFrame(result)
+    except Exception:
         state["chart_path"] = ""
+        return state
 
+    # If only one column or empty, skip chart
+    if df.empty or df.shape[1] < 2:
+        state["chart_path"] = ""
+        return state
+
+    x = df.columns[0]
+    y = df.columns[1]
+
+    fig = px.bar(df, x=x, y=y, title="Auto-generated chart")
+    chart_path = "data/chart.html"
+    fig.write_html(chart_path)
+
+    state["chart_path"] = chart_path
     return state

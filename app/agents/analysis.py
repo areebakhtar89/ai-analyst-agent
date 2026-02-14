@@ -3,6 +3,7 @@ from app.agents.state import AgentState
 
 
 def analysis_node(state: AgentState) -> AgentState:
+    print("RAW RESULT:", state["result"])
     llm = get_llm()
 
     prompt = f"""
