@@ -41,11 +41,12 @@ if st.button("Run Query") and question:
             st.write(data["result"])
 
             # Display chart if one was generated
+            # Display chart if one was generated
             if data["chart_path"] and data["chart_type"] != "none":
                 st.subheader("📈 Data Visualization")
                 try:
-                    # Read and display the HTML chart
-                    with open(data["chart_path"], 'r') as f:
+                    # Read and display the HTML chart with correct encoding
+                    with open(data["chart_path"], "r", encoding="utf-8") as f:
                         chart_html = f.read()
                     st.components.v1.html(chart_html, height=500)
                 except FileNotFoundError:
