@@ -26,3 +26,5 @@ class AgentState(TypedDict):
     insights: str  # Business insights
     chart_path: str  # Path to saved chart HTML
     chart_type: str  # Chart type (bar, line, scatter, none)
+    error: str
+    retry_count: int

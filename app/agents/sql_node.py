@@ -28,6 +28,10 @@ def sql_node(state: AgentState) -> AgentState:
     result = execute_sql(sql)
 
     # Store both the SQL and results in the state
-    state["sql"] = sql
-    state["result"] = result
+    if isinstance(result, dict) and "error" in result:
+        state["error"] = result["error"]
+        state["result"] = []
+    else:
+        state["error"] = ""
+        state["result"] = result
     return state

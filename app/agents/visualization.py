@@ -89,6 +89,19 @@ Return JSON only.
     except Exception as e:
         print("Visualization LLM failed, using deterministic logic:", e)
 
+    # Convert time-like columns for better plotting
+    time_keywords = ["year", "month", "date", "time", "day"]
+
+    for col in df.columns:
+        col_lower = col.lower()
+        if any(k in col_lower for k in time_keywords):
+            try:
+                # If numeric year, convert to string category
+                if df[col].dtype in ["int64", "float64"]:
+                    df[col] = df[col].astype(int).astype(str)
+            except Exception:
+                pass
+
     # Step 3: generate chart
     if chart_type == "line":
         fig = px.line(df, x=x, y=y, title="Auto-generated chart")

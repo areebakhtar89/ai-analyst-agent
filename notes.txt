@@ -1,0 +1,2 @@
+uvicorn app.api.main:app --reload
+streamlit run app/ui/app.py

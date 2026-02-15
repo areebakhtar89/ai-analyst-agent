@@ -6,6 +6,27 @@ from app.tools.sql_tool import execute_sql
 from app.core.table_retriever import get_relevant_tables
 from app.core.schema_metadata import SCHEMA_METADATA
 
+import re
+
+def clean_sql(text: str) -> str:
+    """
+    Extract only the SQL query from LLM output.
+    """
+    # Remove markdown
+    text = text.replace("```sql", "").replace("```", "")
+
+    # Remove everything after first semicolon
+    parts = text.split(";")
+    if len(parts) > 1:
+        text = parts[0] + ";"
+
+    # Remove common explanation phrases
+    text = re.sub(r"(?i)however.*", "", text)
+    text = re.sub(r"(?i)note:.*", "", text)
+    text = re.sub(r"(?i)explanation:.*", "", text)
+
+    return text.strip()
+
 def build_schema_context(tables):
     context = ""
     for table in SCHEMA_METADATA:
@@ -29,24 +50,24 @@ def generate_sql(question: str):
     schema_context = build_schema_context(relevant_tables)
 
     prompt = f"""
-    You are a senior data analyst.
+        You are a senior data analyst.
 
-    Convert the user question into a SQL query.
+        Convert the user question into a SQL query.
 
-    Rules:
-    - Use only the provided tables.
-    - Use joins where needed.
-    - Use EXTRACT(YEAR FROM column) for year calculations.
-    - Return only SQL.
-    - Do not use markdown.
-    
-    Available tables:
-    {schema_context}
+        STRICT RULES:
+        - Return ONLY a SQL query.
+        - Do NOT include explanations.
+        - Do NOT include comments.
+        - Do NOT include words like "However", "Explanation", or "Note".
+        - The output must start with SELECT or WITH.
+        - The output must end with a semicolon.
 
-    User question:
-    {question}
-    """
+        Available tables:
+        {schema_context}
 
+        User question:
+        {question}
+        """
     response = llm.invoke(prompt)
     sql = clean_sql(response.content)
     return sql

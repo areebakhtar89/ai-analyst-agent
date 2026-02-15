@@ -26,27 +26,10 @@ def root():
 
 @app.post("/query")
 def query_agent(payload: dict):
-    """Process a natural language data analysis query.
-    
-    Takes a user question and processes it through the multi-agent workflow
-    to generate SQL, execute it, extract insights, and create visualizations.
-    
-    Args:
-        payload: Dictionary containing the user's question
-        
-    Returns:
-        Dictionary containing the complete analysis results:
-        - plan: Analysis strategy
-        - sql: Generated SQL query
-        - result: Query execution results
-        - insights: Business insights
-        - chart_path: Path to generated chart
-        - chart_type: Type of chart created
-    """
-    # Extract the user's question from the request payload
+
     question = payload.get("question")
 
-    # Initialize the workflow state with default values
+
     state = {
         "question": question,
         "plan": "",
@@ -54,18 +37,20 @@ def query_agent(payload: dict):
         "result": [],
         "insights": "",
         "chart_path": "",
-        "chart_type": ""
+        "chart_type": "",
+        "error": "",
+        "retry_count": 0
     }
 
-    # Execute the complete agent workflow
+
     output = graph.invoke(state)
 
-    # Return the analysis results to the frontend
+
     return {
-        "plan": output["plan"],
-        "sql": output["sql"],
-        "result": output["result"],
-        "insights": output["insights"],
-        "chart_path": output["chart_path"],
-        "chart_type": output["chart_type"]
+        "plan": output.get("plan", ""),
+        "sql": output.get("sql", ""),
+        "result": output.get("result", []),
+        "insights": output.get("insights", ""),
+        "chart_path": output.get("chart_path", ""),
+        "chart_type": output.get("chart_type", "")
     }
