@@ -13,7 +13,7 @@ if not HF_TOKEN:
 class LlamaLLM:
     def __init__(self):
         self.client = InferenceClient(
-            model="meta-llama/Llama-3.3-70B-Instruct",
+            model="meta-llama/Llama-3.1-8B-Instruct",#"meta-llama/Llama-3.3-70B-Instruct",
             token=HF_TOKEN,
             provider="auto",
         )
