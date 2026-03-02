@@ -1,37 +1,38 @@
 import os
 from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
+from groq import Groq
 
 load_dotenv()
 
-HF_TOKEN = os.environ.get("HF_TOKEN")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-if not HF_TOKEN:
-    raise ValueError("HF_TOKEN not found")
+if not GROQ_API_KEY:
+    raise ValueError("GROQ_API_KEY not found")
 
 
-class LlamaLLM:
+class GroqLLM:
     def __init__(self):
-        self.client = InferenceClient(
-            model="meta-llama/Llama-3.1-8B-Instruct",#"meta-llama/Llama-3.3-70B-Instruct",
-            token=HF_TOKEN,
-            provider="auto",
-        )
+        self.client = Groq(api_key=GROQ_API_KEY)
+        self.model = "llama-3.3-70b-versatile"
 
     def invoke(self, prompt: str):
-        response = self.client.chat.completions.create(
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=2048,
+        completion = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,  # lower for better SQL
+            max_completion_tokens=1500,
+            top_p=1,
+            stream=False  # IMPORTANT: disable streaming for agents
         )
+
+        content = completion.choices[0].message.content
 
         class LLMResponse:
             def __init__(self, content):
                 self.content = content
 
-        return LLMResponse(response.choices[0].message.content)
+        return LLMResponse(content)
 
 
 def get_llm():
-    return LlamaLLM()
+    return GroqLLM()

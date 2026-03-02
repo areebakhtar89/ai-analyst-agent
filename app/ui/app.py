@@ -138,8 +138,18 @@ if data:
             st.info("No data returned.")
         st.write("DEBUG SQL:", data.get("sql"))
         # SQL section
+        # SQL section
         with st.expander("Show SQL"):
-            st.code(data["sql"], language="sql")
+            sql_text = data.get("sql", "")
+
+            if sql_text and isinstance(sql_text, str):
+                cleaned_sql = sql_text.strip()
+                if cleaned_sql:
+                    st.code(cleaned_sql, language="sql")
+                else:
+                    st.info("SQL string is empty after cleaning.")
+            else:
+                st.info("SQL not available.")
 
 # -----------------------------
 # Help Section

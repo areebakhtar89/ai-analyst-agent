@@ -34,4 +34,5 @@ def sql_node(state: AgentState) -> AgentState:
     else:
         state["error"] = ""
         state["result"] = result
+        state["sql"] = sql
     return state

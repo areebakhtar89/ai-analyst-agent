@@ -62,7 +62,7 @@ def query_agent(payload: dict):
 
 
     cleaned_result = clean_result(output.get("result", []))
-
+    print("FINAL SQL:", output.get("sql"))
     return {
         "plan": output.get("plan", ""),
         "sql": output.get("sql", ""),

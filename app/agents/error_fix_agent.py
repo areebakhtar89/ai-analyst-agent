@@ -1,5 +1,6 @@
 from app.core.llm import get_llm
 from app.agents.state import AgentState
+from app.agents.sql_agent import clean_sql
 
 
 def error_fix_node(state: AgentState) -> AgentState:
@@ -28,7 +29,7 @@ Rules:
 """
 
     response = llm.invoke(prompt)
-    fixed_sql = response.content.strip()
+    fixed_sql = clean_sql(response.content)#response.content.strip()
 
     state["sql"] = fixed_sql
     state["retry_count"] += 1
