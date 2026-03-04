@@ -1,5 +1,3 @@
-
-### Replace `generate_sql` with this version:
 import re
 from app.core.llm import get_llm
 from app.tools.sql_tool import execute_sql

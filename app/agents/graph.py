@@ -5,7 +5,7 @@ from app.agents.sql_node import sql_node
 from app.agents.analysis import analysis_node
 from app.agents.visualization import visualization_node
 from app.agents.error_fix_agent import error_fix_node
-
+from app.agents.contextualizer import contextualizer_node
 
 MAX_RETRIES = 2
 
@@ -29,9 +29,11 @@ def build_graph():
     workflow.add_node("error_fix", error_fix_node)
     workflow.add_node("analysis", analysis_node)
     workflow.add_node("viz", visualization_node)
+    workflow.add_node("contextualizer", contextualizer_node)
 
     # Entry point
-    workflow.set_entry_point("planner")
+    workflow.set_entry_point("contextualizer")
+    workflow.add_edge("contextualizer","planner")
 
     # Main flow
     workflow.add_edge("planner", "sql_agent")
