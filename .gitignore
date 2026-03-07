@@ -1,8 +1,14 @@
-venv/
-.env
+# Generated chart files
+data/charts/
+data/*.db
+data/*.duckdb
+
+# Logs
+logs/
+
+# Python cache
 __pycache__/
 *.pyc
-test.ipynb
-data/chart.html
-data/*.duckdb
-logs/
+*.pyo
+.env
+venv/
