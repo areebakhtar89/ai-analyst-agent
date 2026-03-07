@@ -12,6 +12,10 @@ The AI Analyst Agent uses a comprehensive logging system that tracks all activit
 - **Error Log**: `logs/ai_analyst_errors_YYYYMMDD.log`
 - **Rotated Logs**: `logs/ai_analyst_YYYYMMDD.log.1`, `.2`, etc.
 
+### Session-Based Logging (NEW!)
+- **Session Log**: `logs/ai_analyst_session_{SESSION_ID}_YYYYMMDD.log`
+- **Session Error Log**: `logs/ai_analyst_errors_session_{SESSION_ID}_YYYYMMDD.log`
+
 ### Configurable via Environment Variables
 ```bash
 # Set custom log directory
@@ -28,6 +32,29 @@ export AI_ANALYST_MAX_LOG_SIZE_MB="100"
 
 # Set number of backup files to keep (default: 5)
 export AI_ANALYST_BACKUP_COUNT="10"
+```
+
+## Usage Examples
+
+### Standard Date-Based Logging
+```python
+from app.core.logging_config import setup_logger
+
+logger = setup_logger(__name__)
+logger.info("This uses date-based logging")
+```
+
+### Session-Based Logging
+```python
+from app.core.logging_config import setup_session_logger
+
+# With session ID
+logger = setup_session_logger(__name__, session_id="user123abc")
+logger.info("This goes to session-specific log file")
+
+# Without session ID (falls back to date-based)
+logger = setup_session_logger(__name__)
+logger.info("This uses date-based logging when no session provided")
 ```
 
 ## Log File Management

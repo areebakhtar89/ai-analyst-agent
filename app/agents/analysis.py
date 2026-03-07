@@ -75,9 +75,20 @@ Here is a summary of the query result:
 
 {data_summary}
 
-Write 2-3 concise business insights based on this data.
+Write exactly 3 concise business insights based on this data.
 Be specific — reference actual numbers and column values from the data.
 Keep each insight to 1-2 sentences.
+
+IMPORTANT — format rules:
+- Number each insight exactly like this: "1. " "2. " "3. "
+- Each insight must be on its own line, starting with the number
+- Do NOT use bullet points, dashes, asterisks, or markdown bold
+- Do NOT add a preamble like "Here are 3 insights:" — start directly with "1."
+
+Example format:
+1. Revenue in the West region was $30.5M, the highest across all regions.
+2. The South region underperformed at $20.4M, 19% below the average.
+3. East and West together account for 57% of total revenue.
 """
 
         logger.debug("Sending prompt to LLM for analysis")

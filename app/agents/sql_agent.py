@@ -3,10 +3,14 @@ from app.core.llm import get_llm
 from app.tools.sql_tool import execute_sql
 from app.core.table_retriever import get_relevant_tables
 from app.core.schema_metadata import SCHEMA_METADATA, JOIN_RELATIONSHIPS
+from app.core.logging_config import setup_logger, log_agent_activity
 
+logger = setup_logger(__name__)
 
 def clean_sql(text: str) -> str:
     """Extract only the SQL query from LLM output."""
+    logger.debug(f"Cleaning SQL text: {text[:100]}...' if len(text) > 100 else text")
+    
     text = re.sub(r"```sql", "", text, flags=re.IGNORECASE)
     text = text.replace("```", "")
     parts = text.split(";")
@@ -15,11 +19,15 @@ def clean_sql(text: str) -> str:
     text = re.sub(r"(?i)\bhowever\b.*", "", text)
     text = re.sub(r"(?i)\bnote\s*:.*", "", text)
     text = re.sub(r"(?i)\bexplanation\s*:.*", "", text)
-    return text.strip()
-
+    
+    cleaned = text.strip()
+    logger.debug(f"Cleaned SQL: {cleaned}")
+    return cleaned
 
 def build_schema_context(tables):
     """Build schema context including column descriptions and JOIN hints."""
+    logger.debug(f"Building schema context for tables: {tables}")
+    
     context = ""
     for table in SCHEMA_METADATA:
         if table["table"] in tables:
@@ -34,20 +42,24 @@ def build_schema_context(tables):
                     context += f"  - {join}\n"
     return context
 
-
 def get_full_schema_context():
     """Return full schema context for all tables (used by error fix agent)."""
     all_tables = [t["table"] for t in SCHEMA_METADATA]
     return build_schema_context(all_tables)
 
-
 def generate_sql(question: str) -> str:
-    llm = get_llm()
+    """Generate SQL query from natural language question."""
+    logger.info(f"Generating SQL for question: '{question[:50]}...' if len(question) > 50 else question")
+    
+    try:
+        llm = get_llm()
 
-    relevant_tables = get_relevant_tables(question)
-    schema_context = build_schema_context(relevant_tables)
+        relevant_tables = get_relevant_tables(question)
+        logger.debug(f"Relevant tables identified: {relevant_tables}")
+        
+        schema_context = build_schema_context(relevant_tables)
 
-    prompt = """You are a senior data analyst expert in SQL.
+        prompt = """You are a senior data analyst expert in SQL.
 
 Convert the user question into a correct SQL query for DuckDB.
 
@@ -103,16 +115,54 @@ Available tables and columns:
 User question:
 """ + question
 
-    response = llm.invoke(prompt)
-    sql = clean_sql(response.content)
-    return sql
-
+        response = llm.invoke(prompt)
+        sql = clean_sql(response.content)
+        
+        logger.info(f"SQL generated successfully: {len(sql)} characters")
+        logger.debug(f"Generated SQL: {sql}")
+        
+        return sql
+        
+    except Exception as e:
+        logger.error(f"SQL generation failed: {str(e)}")
+        return f"-- Error generating SQL: {str(e)}"
 
 def run_agent(question: str):
-    sql = generate_sql(question)
-    result = execute_sql(sql)
-    return {
-        "question": question,
-        "sql": sql,
-        "result": result
-    }
+    """Main SQL agent function that generates and executes SQL."""
+    log_agent_activity(logger, "SQL Agent", "Starting", {"question": question})
+    
+    logger.info(f"Running SQL agent for question: '{question[:50]}...' if len(question) > 50 else question")
+    
+    try:
+        sql = generate_sql(question)
+        
+        if sql.startswith("-- Error"):
+            logger.error(f"SQL generation failed, skipping execution")
+            log_agent_activity(logger, "SQL Agent", "SQL generation failed")
+            return {
+                "question": question,
+                "sql": sql,
+                "result": []
+            }
+        
+        result = execute_sql(sql)
+        
+        logger.info(f"SQL executed successfully: {len(result) if result else 0} rows returned")
+        
+        log_agent_activity(logger, "SQL Agent", "Success", {"result_rows": len(result) if result else 0})
+        
+        return {
+            "question": question,
+            "sql": sql,
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"SQL agent failed: {str(e)}")
+        log_agent_activity(logger, "SQL Agent", "Error", {"error": str(e)})
+        
+        return {
+            "question": question,
+            "sql": f"-- Error: {str(e)}",
+            "result": []
+        }

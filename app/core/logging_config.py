@@ -20,12 +20,13 @@ MAX_LOG_SIZE_MB = int(os.environ.get("AI_ANALYST_MAX_LOG_SIZE_MB", "50"))  # Max
 BACKUP_COUNT = int(os.environ.get("AI_ANALYST_BACKUP_COUNT", "5"))  # Number of backup files to keep
 
 
-def setup_logger(name: str, level: str = "INFO") -> logging.Logger:
+def setup_logger(name: str, level: str = "INFO", session_id: str = None) -> logging.Logger:
     """Set up a logger with consistent formatting and configuration.
     
     Args:
         name: Logger name (typically __name__ from the calling module)
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        session_id: Optional session ID for session-based logging
         
     Returns:
         Configured logger instance
@@ -56,8 +57,16 @@ def setup_logger(name: str, level: str = "INFO") -> logging.Logger:
         datefmt='%H:%M:%S'
     )
     
-    # Use date-based filenames with rotating handlers
-    date_str = datetime.now().strftime('%Y%m%d')
+    # Use session-based or date-based filenames
+    if session_id:
+        date_str = datetime.now().strftime('%Y%m%d')
+        log_file = logs_dir / f"ai_analyst_session_{session_id}_{date_str}.log"
+        error_log_file = logs_dir / f"ai_analyst_errors_session_{session_id}_{date_str}.log"
+    else:
+        # Fallback to date-based if no session provided
+        date_str = datetime.now().strftime('%Y%m%d')
+        log_file = logs_dir / f"ai_analyst_{date_str}.log"
+        error_log_file = logs_dir / f"ai_analyst_errors_{date_str}.log"
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
@@ -66,7 +75,6 @@ def setup_logger(name: str, level: str = "INFO") -> logging.Logger:
     logger.addHandler(console_handler)
     
     # Rotating file handler for all logs (daily rotation with size limits)
-    log_file = logs_dir / f"ai_analyst_{date_str}.log"
     file_handler = RotatingFileHandler(
         log_file, 
         maxBytes=MAX_LOG_SIZE_MB * 1024 * 1024,  # Convert MB to bytes
@@ -78,7 +86,6 @@ def setup_logger(name: str, level: str = "INFO") -> logging.Logger:
     logger.addHandler(file_handler)
     
     # Rotating file handler for errors only
-    error_log_file = logs_dir / f"ai_analyst_errors_{date_str}.log"
     error_handler = RotatingFileHandler(
         error_log_file,
         maxBytes=MAX_LOG_SIZE_MB * 1024 * 1024,  # Convert MB to bytes
@@ -90,7 +97,13 @@ def setup_logger(name: str, level: str = "INFO") -> logging.Logger:
     logger.addHandler(error_handler)
     
     # Log the file locations for debugging
-    logger.info(f"Log files: {log_file} and {error_log_file}")
+    if session_id:
+        logger.info(f"Session-based logging enabled - Session {session_id}")
+        logger.info(f"Log files: {log_file} and {error_log_file}")
+    else:
+        logger.info(f"Date-based logging - No session provided")
+        logger.info(f"Log files: {log_file} and {error_log_file}")
+    
     logger.info(f"Max log size: {MAX_LOG_SIZE_MB}MB, Backup count: {BACKUP_COUNT}")
     
     return logger
@@ -106,6 +119,20 @@ def get_logger(name: str) -> logging.Logger:
         Logger instance
     """
     return logging.getLogger(name)
+
+
+def setup_session_logger(name: str, session_id: str, level: str = "INFO") -> logging.Logger:
+    """Set up a logger with session-specific file naming.
+    
+    Args:
+        name: Logger name (typically __name__ from the calling module)
+        session_id: Session ID for session-based logging
+        level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        
+    Returns:
+        Logger instance with session-based file handlers
+    """
+    return setup_logger(name, level, session_id=session_id)
 
 
 def log_function_call(logger: logging.Logger):
