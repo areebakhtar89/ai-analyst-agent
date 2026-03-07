@@ -2,35 +2,43 @@ import re
 from app.core.llm import get_llm
 from app.tools.sql_tool import execute_sql
 from app.core.table_retriever import get_relevant_tables
-from app.core.schema_metadata import SCHEMA_METADATA
+from app.core.schema_metadata import SCHEMA_METADATA, JOIN_RELATIONSHIPS
 
 
 def clean_sql(text: str) -> str:
     """Extract only the SQL query from LLM output."""
     text = re.sub(r"```sql", "", text, flags=re.IGNORECASE)
     text = text.replace("```", "")
-
-    # Remove everything after first semicolon (extra explanations)
     parts = text.split(";")
     if len(parts) > 1:
         text = parts[0] + ";"
-
-    # Remove common explanation phrases LLMs append
     text = re.sub(r"(?i)\bhowever\b.*", "", text)
     text = re.sub(r"(?i)\bnote\s*:.*", "", text)
     text = re.sub(r"(?i)\bexplanation\s*:.*", "", text)
-
     return text.strip()
 
 
 def build_schema_context(tables):
+    """Build schema context including column descriptions and JOIN hints."""
     context = ""
     for table in SCHEMA_METADATA:
         if table["table"] in tables:
             context += f"\nTable: {table['table']}\n"
+            context += f"Description: {table['description']}\n"
+            context += "Columns:\n"
             for col, desc in table["columns"].items():
                 context += f"  - {col}: {desc}\n"
+            if table.get("joins"):
+                context += "JOIN hints:\n"
+                for join in table["joins"]:
+                    context += f"  - {join}\n"
     return context
+
+
+def get_full_schema_context():
+    """Return full schema context for all tables (used by error fix agent)."""
+    all_tables = [t["table"] for t in SCHEMA_METADATA]
+    return build_schema_context(all_tables)
 
 
 def generate_sql(question: str) -> str:
@@ -49,45 +57,47 @@ STRICT OUTPUT RULES:
 - Must start with SELECT or WITH.
 - Must end with a semicolon.
 
+""" + JOIN_RELATIONSHIPS + """
+
 QUERY LOGIC RULES:
 
 1. TOP N OVERALL (e.g. "top 5 customers by revenue"):
    Use ORDER BY + LIMIT N.
    Example:
-   SELECT customer_name, SUM(total_amount) AS total_revenue
-   FROM orders GROUP BY customer_name
-   ORDER BY total_revenue DESC LIMIT 5;
+   SELECT c.customer_name, SUM(o.total_amount) AS total_revenue
+   FROM orders o
+   JOIN customers c ON o.customer_id = c.customer_id
+   GROUP BY c.customer_name
+   ORDER BY total_revenue DESC LIMIT 10;
 
-2. TOP N PER GROUP (e.g. "top 5 customers per region", "top 3 products per category"):
+2. TOP N PER GROUP (e.g. "top 5 customers per region"):
    ALWAYS use a CTE with ROW_NUMBER() OVER (PARTITION BY <group> ORDER BY <metric> DESC).
-   Never use just GROUP BY + LIMIT — that gives wrong results.
    Example:
    WITH ranked AS (
-     SELECT customer_name, region, SUM(total_amount) AS total_revenue,
-            ROW_NUMBER() OVER (PARTITION BY region ORDER BY SUM(total_amount) DESC) AS rn
-     FROM customers JOIN orders ON customers.customer_id = orders.customer_id
-     GROUP BY region, customer_name
+     SELECT c.customer_name, c.region, SUM(o.total_amount) AS total_revenue,
+            ROW_NUMBER() OVER (PARTITION BY c.region ORDER BY SUM(o.total_amount) DESC) AS rn
+     FROM orders o
+     JOIN customers c ON o.customer_id = c.customer_id
+     GROUP BY c.region, c.customer_name
    )
    SELECT customer_name, region, total_revenue FROM ranked WHERE rn <= 5
    ORDER BY region, total_revenue DESC;
 
 3. TRENDS OVER TIME (e.g. "monthly revenue", "monthly order count"):
-   Group by the time dimension. Do NOT add LIMIT.
+   Group by time. Do NOT add LIMIT.
    Use STRFTIME(order_date, '%Y-%m') for monthly grouping in DuckDB.
    Example:
    SELECT STRFTIME(order_date, '%Y-%m') AS month, COUNT(*) AS order_count
    FROM orders GROUP BY month ORDER BY month;
 
-4. FULL BREAKDOWN / DISTRIBUTION (e.g. "revenue by region", "sales by category"):
+4. FULL BREAKDOWN (e.g. "revenue by region", "sales by category"):
    Return all groups. Do NOT add LIMIT.
 
-5. YEAR OVER YEAR (e.g. "year over year revenue"):
-   Group by year only.
-   Example:
+5. YEAR OVER YEAR:
    SELECT STRFTIME(order_date, '%Y') AS year, SUM(total_amount) AS total_revenue
    FROM orders GROUP BY year ORDER BY year;
 
-Available tables:
+Available tables and columns:
 """ + schema_context + """
 
 User question:

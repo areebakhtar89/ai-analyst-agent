@@ -5,7 +5,9 @@ import plotly.express as px
 import json
 from app.agents.state import AgentState
 from app.core.llm import get_llm
+from app.core.logging_config import setup_logger, log_agent_activity
 
+logger = setup_logger(__name__)
 
 # -----------------------------
 # Column type classifiers
@@ -23,6 +25,8 @@ def classify_columns(df: pd.DataFrame) -> dict:
     Classify each column as: time | category | metric | unknown
     Returns dict: {col_name: type}
     """
+    logger.debug(f"Classifying {len(df.columns)} columns")
+    
     classification = {}
     for col in df.columns:
         col_lower = col.lower()
@@ -42,6 +46,7 @@ def classify_columns(df: pd.DataFrame) -> dict:
         else:
             classification[col] = "category"
 
+    logger.debug(f"Column classification: {classification}")
     return classification
 
 
@@ -50,6 +55,8 @@ def smart_chart_config(df: pd.DataFrame, question: str = "") -> dict:
     Decide chart type, x, y, color based on column semantics.
     Returns dict: {chart_type, x, y, color (optional), barmode (optional)}
     """
+    logger.debug(f"Generating smart chart config for {len(df.columns)} columns")
+    
     cols = list(df.columns)
     n_cols = len(cols)
     classification = classify_columns(df)
@@ -57,6 +64,8 @@ def smart_chart_config(df: pd.DataFrame, question: str = "") -> dict:
     time_cols = [c for c, t in classification.items() if t == "time"]
     metric_cols = [c for c, t in classification.items() if t == "metric"]
     category_cols = [c for c, t in classification.items() if t == "category"]
+    
+    logger.debug(f"Time columns: {time_cols}, Metric columns: {metric_cols}, Category columns: {category_cols}")
 
     # ---- 2-column ----
     if n_cols == 2:
@@ -121,7 +130,9 @@ def smart_chart_config(df: pd.DataFrame, question: str = "") -> dict:
         return {"chart_type": "bar", "x": x, "y": metric_cols[0], "color": color, "barmode": "group"}
 
     # ---- absolute fallback ----
-    return {"chart_type": "bar", "x": cols[0], "y": cols[-1], "color": None}
+    config = {"chart_type": "bar", "x": cols[0], "y": cols[-1], "color": None}
+    logger.debug(f"Generated smart config: {config}")
+    return config
 
 
 def llm_refine_config(df: pd.DataFrame, config: dict, question: str) -> dict:
@@ -129,6 +140,8 @@ def llm_refine_config(df: pd.DataFrame, config: dict, question: str) -> dict:
     Ask LLM to verify or improve the chart config.
     Only accepts the LLM answer if it uses valid column names.
     """
+    logger.debug(f"Refining chart config with LLM for question: {question[:50] + '...' if len(question) > 50 else question}")
+    
     try:
         llm = get_llm()
 
@@ -186,6 +199,7 @@ Example: {{"chart_type": "bar", "x": "region", "y": "total_revenue", "color": "s
                 return refined
 
     except Exception as e:
+        logger.warning(f"LLM chart refinement failed, using smart config: {e}")
         print(f"LLM chart refinement failed, using smart config: {e}")
 
     return config
@@ -193,6 +207,8 @@ Example: {{"chart_type": "bar", "x": "region", "y": "total_revenue", "color": "s
 
 def build_plotly_figure(df: pd.DataFrame, config: dict, question: str):
     """Build a Plotly figure from resolved config."""
+    logger.debug(f"Building Plotly figure with config: {config}")
+    
     chart_type = config.get("chart_type", "bar")
     x = config.get("x")
     y = config.get("y")
@@ -230,6 +246,7 @@ def build_plotly_figure(df: pd.DataFrame, config: dict, question: str):
         yaxis_title=y,
     )
 
+    logger.debug(f"Successfully built {chart_type} chart")
     return fig
 
 
@@ -238,22 +255,30 @@ def build_plotly_figure(df: pd.DataFrame, config: dict, question: str):
 # -----------------------------
 
 def visualization_node(state: AgentState) -> AgentState:
+    log_agent_activity(logger, "Visualization Agent", "Starting visualization")
+    
     result = state.get("result")
     question = state.get("question", "")
+    
+    logger.info(f"Creating visualization for question: {question[:50] + '...' if len(question) > 50 else question}")
 
     if not result or isinstance(result, dict):
+        logger.warning("No valid result data for visualization")
         state["chart_path"] = ""
         state["chart_type"] = "none"
         return state
 
     try:
         df = pd.DataFrame(result)
-    except Exception:
+        logger.debug(f"Created DataFrame with shape {df.shape}")
+    except Exception as e:
+        logger.error(f"Failed to create DataFrame from result: {e}")
         state["chart_path"] = ""
         state["chart_type"] = "none"
         return state
 
     if df.empty or df.shape[1] < 2:
+        logger.warning("DataFrame is empty or has insufficient columns for visualization")
         state["chart_path"] = ""
         state["chart_type"] = "none"
         return state
@@ -263,28 +288,41 @@ def visualization_node(state: AgentState) -> AgentState:
         if any(k in col.lower() for k in TIME_KEYWORDS):
             try:
                 if df[col].dtype in ["int64", "float64"]:
+                    logger.debug(f"Converting time column {col} to string")
                     df[col] = df[col].astype(int).astype(str)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to convert column {col}: {e}")
                 pass
 
     # Step 1: Smart deterministic config
+    logger.debug("Step 1: Generating smart chart configuration")
     config = smart_chart_config(df, question)
 
     # Step 2: LLM refinement pass
+    logger.debug("Step 2: Refining configuration with LLM")
     config = llm_refine_config(df, config, question)
 
     # Step 3: Build and save chart
+    logger.debug("Step 3: Building and saving chart")
     try:
         fig = build_plotly_figure(df, config, question)
         os.makedirs("data/charts", exist_ok=True)
         chart_id = str(uuid.uuid4())[:8]
         chart_path = f"data/charts/chart_{chart_id}.html"
+        
+        logger.debug(f"Saving chart to: {chart_path}")
         fig.write_html(chart_path, include_plotlyjs="cdn", full_html=True)
 
         state["chart_path"] = chart_path
         state["chart_type"] = config.get("chart_type", "bar")
+        
+        log_agent_activity(logger, "Visualization Agent", "Chart created successfully", {
+            "chart_type": state["chart_type"],
+            "chart_path": chart_path
+        })
 
     except Exception as e:
+        logger.error(f"Chart generation failed: {e}")
         print(f"Chart generation failed: {e}")
         state["chart_path"] = ""
         state["chart_type"] = "none"

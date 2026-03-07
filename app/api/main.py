@@ -7,6 +7,9 @@ from fastapi import FastAPI
 from app.agents.graph import build_graph
 import math
 import re
+from app.core.logging_config import setup_logger
+
+logger = setup_logger(__name__)
 
 app = FastAPI(
     title="AI Analyst Agent API",
@@ -18,9 +21,12 @@ graph = build_graph()
 # In-memory session store (replace with Redis in next upgrade)
 session_memory_store = {}
 
+logger.info("AI Analyst Agent API started")
+
 
 @app.get("/")
 def root():
+    logger.info("Root endpoint accessed")
     return {"message": "AI Analyst API running"}
 
 
@@ -30,6 +36,8 @@ def root():
 
 def clean_result(result):
     """Replace NaN/Inf float values with None for JSON serialization."""
+    logger.debug(f"Cleaning {len(result) if result else 0} result rows")
+    
     if not result:
         return []
     cleaned = []
@@ -41,6 +49,8 @@ def clean_result(result):
             else:
                 clean_row[k] = v
         cleaned.append(clean_row)
+    
+    logger.debug(f"Cleaned {len(cleaned)} rows")
     return cleaned
 
 
@@ -50,6 +60,8 @@ def clean_result(result):
 
 def update_structured_memory(structured: dict, sql: str) -> dict:
     """Extract metric, filters, group_by from generated SQL."""
+    logger.debug(f"Updating structured memory with SQL: {sql[:50] + '...' if len(sql) > 50 else sql}")
+    
     if not sql:
         return structured
 
@@ -82,6 +94,7 @@ def update_structured_memory(structured: dict, sql: str) -> dict:
     else:
         new_structured["filters"] = None
 
+    logger.debug(f"Updated structured memory: {new_structured}")
     return new_structured
 
 
@@ -99,9 +112,10 @@ FOLLOWUP_KEYWORDS = [
 def is_followup_question(question: str) -> bool:
     """Heuristic: short or keyword-based follow-up detection."""
     q = question.lower().strip()
-    if len(q.split()) <= 4:
-        return True
-    return any(kw in q for kw in FOLLOWUP_KEYWORDS)
+    is_followup = len(q.split()) <= 4 or any(kw in q for kw in FOLLOWUP_KEYWORDS)
+    
+    logger.debug(f"Follow-up question detection: '{question[:30]}...' -> {is_followup}")
+    return is_followup
 
 
 # -----------------------------
@@ -112,24 +126,31 @@ def is_followup_question(question: str) -> bool:
 def query_agent(payload: dict):
     question = payload.get("question", "").strip()
     session_id = payload.get("session_id", "default")
-
+    
+    logger.info(f"Received query for session {session_id}: {question[:50] + '...' if len(question) > 50 else question}")
+    
     # Initialize memory for new sessions
     if session_id not in session_memory_store:
+        logger.info(f"Creating new session: {session_id}")
         session_memory_store[session_id] = {
             "history": [],
             "structured": {}
         }
 
     memory = session_memory_store[session_id]
+    logger.debug(f"Session {session_id} has {len(memory['history'])} previous interactions")
 
     # If NOT a follow-up, reset structured memory to avoid context bleed
     if not is_followup_question(question):
+        logger.debug("Resetting structured memory for new question")
         memory["structured"] = {}
 
     # Build context from last 3 turns
     context_block = ""
     for turn in memory["history"][-3:]:
         context_block += f"User: {turn['question']}\nSQL: {turn['sql']}\n\n"
+    
+    logger.debug(f"Built context with {len(memory['history'][-3:])} previous turns")
 
     # Initialize LangGraph state
     state = {
@@ -147,7 +168,10 @@ def query_agent(payload: dict):
     }
 
     # Run agent workflow
+    logger.debug("Running agent workflow")
     output = graph.invoke(state)
+    
+    logger.info(f"Agent workflow completed - Chart type: {output.get('chart_type', 'none')}, Rows: {len(output.get('result', []))}")
 
     # Update memory
     memory["history"].append({
@@ -161,7 +185,7 @@ def query_agent(payload: dict):
 
     cleaned_result = clean_result(output.get("result", []))
 
-    return {
+    response = {
         "plan": output.get("plan", ""),
         "sql": output.get("sql", ""),
         "result": cleaned_result,
@@ -169,3 +193,6 @@ def query_agent(payload: dict):
         "chart_path": output.get("chart_path", ""),
         "chart_type": output.get("chart_type", "")
     }
+    
+    logger.info(f"Returning response for session {session_id}")
+    return response
