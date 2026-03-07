@@ -1,3 +1,5 @@
+import os
+import uuid
 import pandas as pd
 import plotly.express as px
 import json
@@ -274,7 +276,9 @@ def visualization_node(state: AgentState) -> AgentState:
     # Step 3: Build and save chart
     try:
         fig = build_plotly_figure(df, config, question)
-        chart_path = "data/chart.html"
+        os.makedirs("data/charts", exist_ok=True)
+        chart_id = str(uuid.uuid4())[:8]
+        chart_path = f"data/charts/chart_{chart_id}.html"
         fig.write_html(chart_path, include_plotlyjs="cdn", full_html=True)
 
         state["chart_path"] = chart_path
