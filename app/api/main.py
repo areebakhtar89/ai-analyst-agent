@@ -5,13 +5,23 @@ Handles requests, session memory, and SSE streaming for agent status.
 
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from app.agents.graph import build_graph
+from app.core.database import set_active_connection, get_active_config
+from app.core.connectors import test_connection, get_schema
 import math
 import re
 import json
 import time
 
 app = FastAPI(title="AI Analyst Agent API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 graph = build_graph()
 session_memory_store = {}
 
@@ -20,6 +30,58 @@ session_memory_store = {}
 def root():
     return {"message": "AI Analyst API running"}
 
+
+# ── Connection endpoints ───────────────────────────────────────────────────────
+
+@app.post("/connect")
+def connect_database(payload: dict):
+    """
+    Test and activate a database connection.
+
+    Payload examples:
+      MySQL/PostgreSQL:
+        {"type": "mysql", "host": "localhost", "port": 3306,
+         "user": "root", "password": "...", "database": "olist_db"}
+
+      SQLite/DuckDB:
+        {"type": "sqlite", "file": "path/to/db.sqlite"}
+    """
+    success, message = test_connection(payload)
+    if success:
+        set_active_connection(payload)
+        return {"success": True, "message": message}
+    else:
+        return {"success": False, "message": message}
+
+
+@app.get("/schema")
+def fetch_schema():
+    """
+    Return the schema (tables, columns, row counts) of the active connection.
+    Used by the Connect page to display what's in the DB after connecting.
+    """
+    try:
+        config = get_active_config()
+        schema = get_schema(config)
+        return {
+            "success": True,
+            "connection_type": config.get("type"),
+            "database": config.get("database") or config.get("file"),
+            "tables": schema
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e), "tables": []}
+
+
+@app.get("/connection/status")
+def connection_status():
+    """Return the currently active connection info (without password)."""
+    config = get_active_config().copy()
+    config.pop("password", None)
+    return {"active": True, "config": config}
+
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
 
 def clean_result(result):
     if not result:
@@ -78,16 +140,11 @@ def is_followup_question(question: str) -> bool:
     return any(kw in q for kw in FOLLOWUP_KEYWORDS)
 
 
-# -----------------------------
-# SSE Streaming endpoint
-# -----------------------------
+# ── SSE Streaming endpoint ─────────────────────────────────────────────────────
 
 @app.get("/query/stream")
 def stream_query(question: str, session_id: str):
-    """
-    SSE endpoint that streams agent progress events then final result.
-    Each event: data: <json>\n\n
-    """
+    """SSE endpoint — streams agent progress then final result."""
     def event_stream():
         AGENTS = [
             ("contextualizer", "Contextualizer", "Refining your question with memory..."),
@@ -97,7 +154,6 @@ def stream_query(question: str, session_id: str):
             ("viz",            "Viz Agent",      "Building visualization..."),
         ]
 
-        # --- Send agent progress events ---
         for i, (key, name, description) in enumerate(AGENTS):
             event = json.dumps({
                 "type": "agent_start",
@@ -108,9 +164,8 @@ def stream_query(question: str, session_id: str):
                 "total": len(AGENTS)
             })
             yield f"data: {event}\n\n"
-            time.sleep(0.15)  # Small delay so UI can render each step
+            time.sleep(0.15)
 
-        # --- Run actual graph ---
         try:
             if session_id not in session_memory_store:
                 session_memory_store[session_id] = {"history": [], "structured": {}}
@@ -150,7 +205,6 @@ def stream_query(question: str, session_id: str):
 
             cleaned_result = clean_result(output.get("result", []))
 
-            # --- Send final result event ---
             result_event = json.dumps({
                 "type": "result",
                 "plan": output.get("plan", ""),
@@ -166,26 +220,20 @@ def stream_query(question: str, session_id: str):
             error_event = json.dumps({"type": "error", "message": str(e)})
             yield f"data: {error_event}\n\n"
 
-        # Signal stream end
         yield "data: {\"type\": \"done\"}\n\n"
 
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
-        }
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
 
 
-# -----------------------------
-# Standard POST endpoint (kept for compatibility)
-# -----------------------------
+# ── Standard POST endpoint ─────────────────────────────────────────────────────
 
 @app.post("/query")
 def query_agent(payload: dict):
-    question = payload.get("question", "").strip()
+    question   = payload.get("question", "").strip()
     session_id = payload.get("session_id", "default")
 
     if session_id not in session_memory_store:
@@ -204,33 +252,23 @@ def query_agent(payload: dict):
         "question": question,
         "context": context_block,
         "structured_memory": memory["structured"].copy(),
-        "plan": "",
-        "sql": "",
-        "result": [],
-        "insights": "",
-        "chart_path": "",
-        "chart_type": "",
-        "error": "",
-        "retry_count": 0
+        "plan": "", "sql": "", "result": [],
+        "insights": "", "chart_path": "", "chart_type": "",
+        "error": "", "retry_count": 0
     }
 
     output = graph.invoke(state)
 
-    memory["history"].append({
-        "question": question,
-        "sql": output.get("sql", "")
-    })
+    memory["history"].append({"question": question, "sql": output.get("sql", "")})
     memory["structured"] = update_structured_memory(
         memory["structured"], output.get("sql", "")
     )
 
-    cleaned_result = clean_result(output.get("result", []))
-
     return {
-        "plan": output.get("plan", ""),
-        "sql": output.get("sql", ""),
-        "result": cleaned_result,
-        "insights": output.get("insights", ""),
+        "plan":       output.get("plan", ""),
+        "sql":        output.get("sql", ""),
+        "result":     clean_result(output.get("result", [])),
+        "insights":   output.get("insights", ""),
         "chart_path": output.get("chart_path", ""),
         "chart_type": output.get("chart_type", "")
     }
