@@ -672,17 +672,15 @@ with st.sidebar:
     st.markdown('<div class="sidebar-section">Example Questions</div>', unsafe_allow_html=True)
 
     example_questions = [
-        "Monthly revenue trend by product category",
-        "Top 10 customers by total revenue",
-        "Revenue breakdown by region and product",
-        "Year over year revenue growth by region",
-        "Best and worst performing products by profit margin",
-        "Customer segment revenue share — show as pie chart",
-        "Top 5 products per region — grouped bar chart",
-        "Monthly order volume trend — show as line chart",
-        "Average order value by customer segment and region",
-        "Revenue concentration — top 10 vs rest of customers",
-    ]
+    "What is the total revenue by customer state?",
+    "Which product categories generate the most revenue?",
+    "What is the monthly order trend throughout 2017 and 2018?",
+    "Which sellers have the highest number of delivered orders?",
+    "What is the average delivery time by customer state?",
+    "What percentage of orders were delivered late compared to the estimated date?",
+    "What is the average review score by product category?",
+    "Which payment methods are most popular and what is their average order value?",
+]
 
     for i, q in enumerate(example_questions):
         if st.button(q, key=f"ex_{i}",
