@@ -2,6 +2,7 @@
 data/charts/
 data/*.db
 data/*.duckdb
+app/data/raw/*.csv
 
 # Logs
 logs/
