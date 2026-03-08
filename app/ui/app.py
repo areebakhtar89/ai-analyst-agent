@@ -1,8 +1,6 @@
 import sys
 import os
 
-# Ensure project root is in path regardless of where Streamlit is launched from
-# This fixes "No module named 'app.core'" when running from app/ui/
 _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
@@ -23,201 +21,494 @@ logger = setup_logger(__name__)
 API_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(
-    page_title="AI Analyst Agent",
+    page_title="QueryMind · AI Analyst",
+    page_icon="⬡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ─────────────────────────────────────────
-# GLOBAL CSS
+# GLOBAL CSS — Terminal Operations Aesthetic
+# Sharp, dense, data-forward. Feels like
+# infrastructure, not a chatbot.
 # ─────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-html, body, [class*="css"] { font-family: 'IBM Plex Sans', sans-serif; }
+:root {
+    --bg:        #080b0f;
+    --bg2:       #0d1117;
+    --bg3:       #131920;
+    --border:    #1c2635;
+    --border2:   #243042;
+    --accent:    #00d4aa;
+    --accent2:   #f0a500;
+    --accent3:   #4d9fff;
+    --danger:    #ff4f4f;
+    --text:      #ffffff;
+    --text-dim:  #cccccc;
+    --text-muted:#3a5068;
+    --green:     #00e676;
+    --mono:      'Space Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+}
+
+html, body, [class*="css"] {
+    font-family: var(--sans);
+    background-color: var(--bg) !important;
+}
+
+/* Hide Streamlit chrome */
 #MainMenu, footer, header { visibility: hidden; height: 0; min-height: 0; padding: 0; }
-[data-testid="stHeader"] { height: 0 !important; min-height: 0 !important; padding: 0 !important; display: none !important; }
-.stAppHeader { height: 0 !important; display: none !important; }
+[data-testid="stHeader"] { display: none !important; }
+.stAppHeader { display: none !important; }
 [data-testid="stToolbar"] { display: none !important; }
-.stApp { background-color: #0d0d0d; }
-.block-container { padding-top: 1.5rem !important; }
+.stApp { background-color: var(--bg) !important; }
+.block-container {
+    padding-top: 0 !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    max-width: 1400px !important;
+}
 
+/* ── SIDEBAR ── */
 [data-testid="stSidebar"] {
-    background-color: #111111 !important;
-    border-right: 1px solid #222 !important;
+    background-color: var(--bg2) !important;
+    border-right: 1px solid var(--border) !important;
 }
-[data-testid="stSidebar"] * { color: #ccc !important; }
+[data-testid="stSidebar"] * { color: var(--text-dim) !important; }
 
-.sidebar-logo {
-    padding: 8px 0 24px 0;
-    border-bottom: 1px solid #222;
-    margin-bottom: 20px;
+.sidebar-brand {
+    padding: 20px 0 20px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
 }
-.sidebar-logo h2 {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 18px; font-weight: 600;
-    color: #f0f0f0 !important; margin: 0;
-    letter-spacing: -0.5px;
-}
-.sidebar-logo span {
-    font-size: 11px; color: #999 !important;
-    letter-spacing: 2px; text-transform: uppercase;
-}
-.sidebar-section {
-    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-    color: #888 !important; margin: 20px 0 8px 0;
-    padding-bottom: 4px; border-bottom: 1px solid #1e1e1e;
-}
-
-[data-testid="stSidebar"] .stButton button {
-    background: #161616 !important; border: 1px solid #252525 !important;
-    color: #ccc !important; border-radius: 6px !important;
-    font-size: 12px !important; font-family: 'IBM Plex Sans', sans-serif !important;
-    text-align: left !important; padding: 8px 12px !important;
-    width: 100% !important; transition: all 0.15s ease !important;
-    margin-bottom: 2px !important;
-}
-[data-testid="stSidebar"] .stButton button:hover {
-    background: #1e1e1e !important; border-color: #f0a500 !important;
-    color: #f0a500 !important;
-}
-
-/* User question pill — bot icon prefix */
-.user-question {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 20px;
-    padding: 8px 18px 8px 12px;
-    font-size: 14px; color: #f0f0f0;
-    font-family: 'IBM Plex Sans', sans-serif;
-    margin: 4px 0;
-}
-.user-question .bot-icon {
-    width: 24px; height: 24px;
-    background: #1e1e1e;
-    border: 1px solid #333;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px;
-    flex-shrink: 0;
+.sidebar-brand .logo-mark {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent) !important;
+    letter-spacing: -1px;
     line-height: 1;
 }
-
-/* Agent pipeline */
-.agent-pipeline {
-    display: flex; align-items: center; gap: 0;
-    margin: 12px 0 20px 0; background: #111;
-    border: 1px solid #1e1e1e; border-radius: 8px;
-    padding: 10px 16px;
-    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+.sidebar-brand .logo-sub {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted) !important;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 4px;
 }
-.agent-step { display: flex; align-items: center; gap: 6px; color: #555; padding: 0 12px 0 0; white-space: nowrap; }
-.agent-step.done { color: #f0a500; }
+.sidebar-brand .status-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-right: 6px;
+    box-shadow: 0 0 6px var(--green);
+    animation: breathe 2s ease-in-out infinite;
+}
+.sidebar-brand .status-line {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted) !important;
+    letter-spacing: 1px;
+    margin-top: 10px;
+}
+@keyframes breathe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.sidebar-section {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted) !important;
+    margin: 24px 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sidebar-section::before {
+    content: '';
+    display: inline-block;
+    width: 3px; height: 3px;
+    background: var(--accent);
+    border-radius: 50%;
+}
+
+/* Sidebar question buttons */
+[data-testid="stSidebar"] .stButton button {
+    background: var(--bg3) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-dim) !important;
+    border-radius: 4px !important;
+    font-size: 11px !important;
+    font-family: var(--sans) !important;
+    text-align: left !important;
+    padding: 9px 12px !important;
+    width: 100% !important;
+    transition: all 0.15s ease !important;
+    margin-bottom: 3px !important;
+    line-height: 1.4 !important;
+}
+[data-testid="stSidebar"] .stButton button:hover {
+    background: #0d1e2e !important;
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+    transform: translateX(2px) !important;
+}
+
+/* ── MAIN HEADER ── */
+.main-header {
+    padding: 24px 0 20px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+.main-title {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 700;
+    color: #e8f4ff;
+    letter-spacing: -1px;
+    line-height: 1;
+}
+.main-title span { color: var(--accent); }
+.main-subtitle {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+.header-stats {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+.header-stat {
+    text-align: right;
+    font-family: var(--mono);
+}
+.header-stat .val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+}
+.header-stat .lbl {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+.header-divider {
+    width: 1px; height: 36px;
+    background: var(--border);
+}
+
+/* ── USER MESSAGE ── */
+.user-bubble {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 20px 0 8px 0;
+}
+.user-avatar {
+    width: 30px; height: 30px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.user-text {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 0 8px 8px 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #ffffff;
+    font-family: var(--sans);
+    line-height: 1.5;
+    max-width: 80%;
+}
+
+/* ── AGENT PIPELINE ── */
+.agent-pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 8px 0 20px 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+.agent-step {
+    display: flex; align-items: center; gap: 7px;
+    color: var(--text-muted);
+    padding: 0 12px 0 0;
+    white-space: nowrap;
+}
+.agent-step.done { color: var(--accent); }
 .agent-step.active { color: #ffffff; }
-.agent-step .dot { width: 6px; height: 6px; border-radius: 50%; background: #2a2a2a; flex-shrink: 0; }
-.agent-step.done .dot { background: #f0a500; }
+.agent-step .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+.agent-step.done .dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 .agent-step.active .dot { background: #fff; animation: pulse 0.8s infinite; }
-.agent-sep { color: #252525; padding: 0 4px; }
+.agent-sep { color: var(--border2); padding: 0 4px; font-size: 14px; }
 
 @keyframes pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.7); }
+    50% { opacity: 0.3; transform: scale(0.6); }
 }
 
-/* Insights */
+/* ── INSIGHTS ── */
 .insights-header {
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
-    letter-spacing: 2px; text-transform: uppercase; color: #999; margin-bottom: 10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
+.insights-header::before {
+    content: '';
+    display: inline-block;
+    width: 16px; height: 1px;
+    background: var(--accent);
+}
+
 .insight-card {
-    display: flex; gap: 14px; align-items: flex-start;
-    background: #111; border: 1px solid #222;
-    border-left: 3px solid #f0a500; border-radius: 6px;
-    padding: 12px 16px; margin-bottom: 8px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 6px;
+    transition: border-color 0.2s;
 }
+.insight-card:hover { border-color: var(--accent); border-left-color: var(--accent2); }
 .insight-num {
-    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-    color: #f0a500; font-weight: 600; min-width: 20px; padding-top: 1px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 22px;
+    padding-top: 2px;
+    opacity: 0.7;
 }
-.insight-text { font-size: 13px; color: #d8d8d8; line-height: 1.6; }
+.insight-text {
+    font-size: 13px;
+    color: #ffffff;
+    line-height: 1.65;
+    font-family: var(--sans);
+}
 
-/* Section labels — brighter */
+/* ── SECTION LABELS ── */
 .section-label {
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
-    letter-spacing: 2px; text-transform: uppercase;
-    color: #999; margin-bottom: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
-.chart-type-badge {
-    display: inline-block; background: #1a1a1a; border: 1px solid #2a2a2a;
-    border-radius: 4px; padding: 2px 8px;
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
-    color: #f0a500; margin-left: 8px; vertical-align: middle; text-transform: uppercase;
+.section-label::before {
+    content: '';
+    display: inline-block;
+    width: 10px; height: 1px;
+    background: var(--border2);
 }
 
-/* Chart wrapper with border */
+.chart-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #0a1a14;
+    border: 1px solid #1a3a2e;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--accent);
+    margin-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ── CHART WRAPPER ── */
 .chart-wrapper {
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
     overflow: hidden;
-    background: #0f0f0f;
-    padding: 4px;
+    background: #090e14;
     margin-top: 4px;
 }
 
-/* Download buttons */
+/* ── ROW LIMIT BANNER ── */
+.row-limit-banner {
+    background: #1a1400;
+    border: 1px solid #3a2e00;
+    border-radius: 4px;
+    padding: 7px 14px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent2);
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.row-limit-banner::before { content: '⚠'; font-size: 11px; }
+
+/* ── DATA TABLE ── */
+[data-testid="stDataFrame"] {
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+}
+
+/* ── DOWNLOAD BUTTONS ── */
 .stDownloadButton button {
-    background: #1a1a1a !important; border: 1px solid #2a2a2a !important;
-    color: #aaa !important; font-size: 11px !important;
-    font-family: 'IBM Plex Mono', monospace !important;
-    border-radius: 4px !important; padding: 4px 12px !important;
+    background: var(--bg3) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-dim) !important;
+    font-size: 10px !important;
+    font-family: var(--mono) !important;
+    border-radius: 3px !important;
+    padding: 5px 12px !important;
+    letter-spacing: 1px !important;
 }
 .stDownloadButton button:hover {
-    border-color: #f0a500 !important; color: #f0a500 !important;
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
 }
 
-/* Chat input */
-[data-testid="stChatInput"] { border-top: 1px solid #1a1a1a !important; background: #0d0d0d !important; }
+/* ── CHAT INPUT ── */
+[data-testid="stChatInput"] {
+    border-top: 1px solid var(--border) !important;
+    background: var(--bg) !important;
+    padding: 12px 0 !important;
+}
 [data-testid="stChatInput"] textarea {
-    background: #111 !important; border: 1px solid #222 !important;
-    color: #f0f0f0 !important; border-radius: 8px !important;
-    font-family: 'IBM Plex Sans', sans-serif !important; font-size: 14px !important;
+    background: var(--bg2) !important;
+    border: 1px solid var(--border2) !important;
+    color: #ffffff !important;
+    border-radius: 6px !important;
+    font-family: var(--sans) !important;
+    font-size: 14px !important;
+    caret-color: var(--accent) !important;
+}
+[data-testid="stChatInput"] textarea:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 1px var(--accent) !important;
 }
 
-/* Typing cursor */
+/* ── TYPING CURSOR ── */
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 .typing-cursor {
-    display: inline-block; width: 2px; height: 14px;
-    background: #f0a500; margin-left: 2px;
-    vertical-align: middle; animation: blink 0.8s step-end infinite;
+    display: inline-block; width: 2px; height: 13px;
+    background: var(--accent); margin-left: 2px;
+    vertical-align: middle; animation: blink 0.9s step-end infinite;
 }
 
-/* New session btn */
+/* ── NEW SESSION BUTTON ── */
 .new-session-btn button {
-    background: transparent !important; border: 1px solid #252525 !important;
-    color: #777 !important; font-size: 11px !important;
-    font-family: 'IBM Plex Mono', monospace !important;
-    border-radius: 4px !important; width: 100% !important; margin-top: 8px !important;
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-muted) !important;
+    font-size: 10px !important;
+    font-family: var(--mono) !important;
+    border-radius: 4px !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+    letter-spacing: 1px !important;
+    padding: 8px !important;
 }
-.new-session-btn button:hover { border-color: #f0a500 !important; color: #f0a500 !important; }
+.new-session-btn button:hover {
+    border-color: var(--danger) !important;
+    color: var(--danger) !important;
+}
 
-[data-testid="stDataFrame"] {
-    border: 1px solid #1e1e1e !important; border-radius: 6px !important; overflow: hidden !important;
-}
-
-/* Selectbox styling */
-[data-testid="stSelectbox"] label {
-    font-family: 'IBM Plex Mono', monospace !important;
-    font-size: 10px !important; letter-spacing: 2px !important;
-    text-transform: uppercase !important; color: #666 !important;
-}
+/* ── SELECTBOX ── */
 [data-testid="stSelectbox"] > div > div {
-    background: #161616 !important; border: 1px solid #2a2a2a !important;
-    color: #f0a500 !important; border-radius: 4px !important;
-    font-family: 'IBM Plex Mono', monospace !important; font-size: 12px !important;
+    background: var(--bg3) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--accent) !important;
+    border-radius: 4px !important;
+    font-family: var(--mono) !important;
+    font-size: 11px !important;
+}
+
+/* ── CONVERSATION DIVIDER ── */
+.convo-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 28px 0;
+}
+
+/* ── EMPTY STATE ── */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+.empty-state .bigmark {
+    font-family: var(--mono);
+    font-size: 48px;
+    color: var(--border2);
+    line-height: 1;
+    margin-bottom: 16px;
+}
+.empty-state h3 {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 400;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+.empty-state p {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--sans);
+    max-width: 380px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* Slider */
+[data-testid="stSlider"] > div > div > div {
+    background: var(--accent) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -232,77 +523,56 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if "pending_prompt" not in st.session_state:
     st.session_state.pending_prompt = None
-# Chart type overrides per message index: {msg_idx: chart_type}
 if "chart_overrides" not in st.session_state:
     st.session_state.chart_overrides = {}
+if "query_count" not in st.session_state:
+    st.session_state.query_count = 0
 
 
 # ─────────────────────────────────────────
-# CHART TYPE SWITCHER — regenerate chart client-side
+# CHART TYPE SWITCHER
 # ─────────────────────────────────────────
-
 CHART_OPTIONS = ["bar", "line", "scatter", "pie", "area"]
 
-
 def get_applicable_chart_types(result: list) -> tuple[list, dict]:
-    """
-    Analyse the result data and return:
-    - applicable: list of chart types that will work correctly
-    - reasons: dict of {chart_type: reason_why_not} for inapplicable ones
-    """
     if not result:
         return [], {}
-
     df = pd.DataFrame(result)
     cols = list(df.columns)
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
     cat_cols = [c for c in cols if c not in numeric_cols]
     n_rows = len(df)
-
-    applicable = []
-    reasons = {}
-
-    # BAR — needs at least 1 category + 1 numeric
+    applicable, reasons = [], {}
     if cat_cols and numeric_cols:
         applicable.append("bar")
     else:
-        reasons["bar"] = "needs a category column and a numeric column"
-
-    # LINE — needs a time/ordered column + numeric; works on any ordered category too
+        reasons["bar"] = "needs a category + numeric column"
     if numeric_cols and len(cols) >= 2:
         applicable.append("line")
     else:
         reasons["line"] = "needs at least one numeric column"
-
-    # SCATTER — needs 2 numeric columns
     if len(numeric_cols) >= 2:
         applicable.append("scatter")
     else:
-        reasons["scatter"] = "needs at least 2 numeric columns"
-
-    # PIE — needs 1 category + 1 numeric, and ≤ 12 slices (more = unreadable)
+        reasons["scatter"] = "needs 2 numeric columns"
     if cat_cols and numeric_cols and n_rows <= 12:
         applicable.append("pie")
-    elif cat_cols and numeric_cols and n_rows > 12:
-        reasons["pie"] = f"too many slices ({n_rows} rows) — pie charts work best with ≤12 categories"
+    elif cat_cols and numeric_cols:
+        reasons["pie"] = f"too many slices ({n_rows}) — best with ≤12"
     else:
-        reasons["pie"] = "needs a category column and a numeric column"
-
-    # AREA — same as line
+        reasons["pie"] = "needs a category + numeric column"
     if numeric_cols and len(cols) >= 2:
         applicable.append("area")
     else:
         reasons["area"] = "needs at least one numeric column"
-
     return applicable, reasons
 
 
-# Column classification keywords (mirrors visualization.py)
 _TIME_KW     = ["date","time","month","year","day","week","quarter"]
 _METRIC_KW   = ["revenue","sales","amount","price","total","count",
                  "profit","cost","value","qty","quantity","avg","sum"]
 _CATEGORY_KW = ["name","region","segment","category","type","status",
-                 "country","city","product","brand","department"]
+                 "country","city","product","brand","department","state"]
 
 def _classify_df(df):
     time_cols, metric_cols, cat_cols = [], [], []
@@ -321,83 +591,50 @@ def _classify_df(df):
 
 
 def _resolve_axes(df, chart_type):
-    """
-    Resolve x, y, color correctly for any column combination.
-
-    Key cases:
-    - year + month + metric  -> x=month (high cardinality), color=year (low cardinality)
-    - region + product + metric -> x=product, color=region
-    - time + category + metric -> x=time, color=category
-    - 2 cols -> x=dim, y=metric, no color
-    """
     cols = list(df.columns)
     time_cols, metric_cols, cat_cols = _classify_df(df)
     dim_cols = time_cols + cat_cols
-
     y = metric_cols[0] if metric_cols else cols[-1]
-    x = None
-    color = None
-
+    x, color = None, None
     if chart_type == "scatter":
         x = metric_cols[0] if len(metric_cols) >= 2 else (dim_cols[0] if dim_cols else cols[0])
         y = metric_cols[1] if len(metric_cols) >= 2 else y
         color = cat_cols[0] if cat_cols else None
         return x, y, color
-
     if chart_type == "pie":
         x = cat_cols[0] if cat_cols else (time_cols[0] if time_cols else cols[0])
         return x, y, None
-
-    # 2+ time cols (e.g. year + month): highest cardinality = x, lowest = color
     if len(time_cols) >= 2:
         by_card = sorted(time_cols, key=lambda c: df[c].nunique(), reverse=True)
-        x = by_card[0]
-        color = by_card[1]
-    # 1 time + categories: x=time, color=lowest-cardinality category
+        x, color = by_card[0], by_card[1]
     elif len(time_cols) == 1 and cat_cols:
         x = time_cols[0]
         color = min(cat_cols, key=lambda c: df[c].nunique())
-    # 1 time only
     elif len(time_cols) == 1:
         x = time_cols[0]
-    # No time, 2+ categories: x=highest cardinality, color=lowest
     elif len(cat_cols) >= 2:
         by_card = sorted(cat_cols, key=lambda c: df[c].nunique(), reverse=True)
-        x = by_card[0]
-        color = by_card[-1]
+        x, color = by_card[0], by_card[-1]
     elif cat_cols:
         x = cat_cols[0]
     else:
         x = cols[0]
-
     return x, y, color
 
 
 def regenerate_chart(result, chart_type, question):
-    """Regenerate chart for the given type. Returns (chart_path, error_message)."""
-    logger.info(f"Regenerating chart: type={chart_type}, question='{question[:50]}...' if len(question) > 50 else question")
-    
     if not result:
-        logger.warning("No data provided for chart regeneration")
         return "", "No data to chart"
-
     df = pd.DataFrame(result)
     if df.empty or df.shape[1] < 2:
         return "", "Not enough columns to chart"
-
     applicable, reasons = get_applicable_chart_types(result)
     if chart_type not in applicable:
-        reason = reasons.get(chart_type, "not applicable to this data")
-        return "", f"Cannot use {chart_type} chart: {reason}"
-
+        return "", f"Cannot use {chart_type}: {reasons.get(chart_type, 'not applicable')}"
     try:
         cols = list(df.columns)
         _, metric_cols, cat_cols = _classify_df(df)
-
         x, y, color = _resolve_axes(df, chart_type)
-
-        # Aggregate extra dimensions away when 4+ cols (e.g. month+category+region+revenue).
-        # Without this Plotly receives unaggregated rows and produces overlapping bars.
         if len(cols) >= 4 and chart_type not in ("pie", "scatter"):
             group_cols = [c for c in [x, color] if c is not None]
             if group_cols and y in df.columns:
@@ -405,14 +642,15 @@ def regenerate_chart(result, chart_type, question):
                     df = df.groupby(group_cols, as_index=False)[y].sum()
                 except Exception:
                     pass
-
         title = question.capitalize() if question else "Query Results"
-        common = dict(template="plotly_dark", height=420, title=title)
-
+        common = dict(
+            template="plotly_dark", height=400, title=title,
+            color_discrete_sequence=["#00d4aa","#4d9fff","#f0a500","#ff4f4f","#a78bfa","#34d399"]
+        )
         if chart_type == "pie":
-            names_col  = cat_cols[0] if cat_cols else cols[0]
+            names_col = cat_cols[0] if cat_cols else cols[0]
             values_col = metric_cols[0] if metric_cols else cols[-1]
-            fig = px.pie(df, names=names_col, values=values_col, hole=0.35, **common)
+            fig = px.pie(df, names=names_col, values=values_col, hole=0.4, **common)
             fig.update_traces(textposition="outside", textinfo="percent+label")
         elif chart_type == "line":
             fig = px.line(df, x=x, y=y, color=color, markers=True, **common)
@@ -422,33 +660,36 @@ def regenerate_chart(result, chart_type, question):
             fig = px.scatter(df, x=sc_x, y=sc_y, color=cat_cols[0] if cat_cols else None, **common)
         elif chart_type == "area":
             fig = px.area(df, x=x, y=y, color=color, **common)
-        else:  # bar
+        else:
             barmode = "group" if color else "relative"
             fig = px.bar(df, x=x, y=y, color=color, barmode=barmode, **common)
 
         fig.update_layout(
-            margin=dict(l=50, r=20, t=55, b=80),
-            font=dict(size=12),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            paper_bgcolor="#090e14",
+            plot_bgcolor="#090e14",
+            margin=dict(l=50, r=20, t=50, b=60),
+            font=dict(family="Space Mono, monospace", size=11, color="#5a7a94"),
+            title_font=dict(family="DM Sans", size=13, color="#ffffff"),
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                font=dict(size=10), bgcolor="rgba(0,0,0,0)"
+            ),
+            xaxis=dict(gridcolor="#1c2635", linecolor="#1c2635", tickfont=dict(size=10)),
+            yaxis=dict(gridcolor="#1c2635", linecolor="#1c2635", tickfont=dict(size=10)),
         )
 
-        import os
         os.makedirs("data/charts", exist_ok=True)
         chart_id = str(uuid.uuid4())[:8]
         path = f"data/charts/chart_{chart_id}.html"
         fig.write_html(path, include_plotlyjs="cdn", full_html=True)
-        logger.info(f"Chart regenerated successfully: {chart_type} -> {path}")
         return path, None
-
     except Exception as e:
-        logger.error(f"Chart regeneration failed: {chart_type} - {str(e)}")
-        return "", f"Chart generation failed: {str(e)}"
+        return "", f"Chart error: {str(e)}"
 
 
 # ─────────────────────────────────────────
 # UTILITIES
 # ─────────────────────────────────────────
-
 def sanitize_text(text: str) -> str:
     if not text:
         return ""
@@ -458,47 +699,26 @@ def sanitize_text(text: str) -> str:
 
 
 def parse_insights(text: str) -> list:
-    """
-    Robustly split LLM insight text into individual cards.
-    Handles all common LLM output formats in priority order:
-      1. Numbered:   "1. text"  "2) text"  "**1.** text"
-      2. Bullets:    "- text"   "* text"
-      3. Paragraphs: blank line between chunks
-      4. Lines:      single newline splits (if chunks are long enough)
-      5. Fallback:   return whole text as one card
-    """
     text = sanitize_text(text)
     if not text:
         return []
-
-    # Strip markdown bold wrapping numbers: **1.** → 1.
     text = re.sub(r'\*{1,2}(\d+[\.\)])\*{1,2}', r'\1', text)
-
-    # 1. Numbered lines: "1." "2)" "1:" at line start
     parts = re.split(r'(?:^|\n)\s*\d+[\.\):]\s+', text)
     parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 20]
     if len(parts) >= 2:
         return parts
-
-    # 2. Bullet points: "- " or "* " at line start
     parts = re.split(r'\n\s*[-\*]\s+', text)
     parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 20]
     if len(parts) >= 2:
         return parts
-
-    # 3. Blank-line separated paragraphs
     parts = re.split(r'\n{2,}', text)
     parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 20]
     if len(parts) >= 2:
         return parts
-
-    # 4. Single newline splits (only if chunks are substantial)
     parts = re.split(r'\n', text)
     parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 40]
     if len(parts) >= 2:
         return parts
-
-    # 5. Fallback: single card
     return [text]
 
 
@@ -515,7 +735,7 @@ def render_agent_pipeline(active_step: int = -1, done: bool = False):
 
 
 def render_insights(insights_text: str):
-    st.markdown('<div class="insights-header">● KEY INSIGHTS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="insights-header">Key Insights</div>', unsafe_allow_html=True)
     items = parse_insights(insights_text)
     for i, item in enumerate(items, 1):
         st.markdown(f"""
@@ -525,67 +745,51 @@ def render_insights(insights_text: str):
         </div>""", unsafe_allow_html=True)
 
 
-def render_chart(chart_path: str, chart_type: str, result: list, question: str,
-                 chart_key: str, msg_idx: int = -1):
-    """Render chart with border, download, and smart chart type switcher."""
+def render_chart(chart_path, chart_type, result, question, chart_key, msg_idx=-1):
     if not chart_path or chart_type == "none":
         return False
-
-    # ── Resolve any persisted override FIRST so badge shows correct type ──
     if msg_idx >= 0 and msg_idx in st.session_state.chart_overrides:
         override = st.session_state.chart_overrides[msg_idx]
         chart_path = override.get("chart_path", chart_path)
         chart_type = override.get("chart_type", chart_type)
 
-    # Work out which chart types are actually valid for this data
     applicable, reasons = get_applicable_chart_types(result)
     dropdown_options = applicable if applicable else CHART_OPTIONS
     current_idx = dropdown_options.index(chart_type) if chart_type in dropdown_options else 0
 
-    # ── Header row: label + badge + dropdown — badge uses already-resolved chart_type ──
     hcol1, hcol2 = st.columns([2, 1])
     with hcol1:
-        badge = f'<span class="chart-type-badge">↗ {chart_type} chart</span>' if chart_type else ""
-        st.markdown(f'<div class="section-label">VISUALIZATION {badge}</div>', unsafe_allow_html=True)
+        badge = f'<span class="chart-type-badge">↗ {chart_type}</span>' if chart_type else ""
+        st.markdown(f'<div class="section-label">Visualization {badge}</div>', unsafe_allow_html=True)
     with hcol2:
         selected = st.selectbox(
-            "Switch chart type",
-            options=dropdown_options,
-            index=current_idx,
-            key=f"chart_select_{chart_key}",
-            label_visibility="collapsed",
-            help="Only chart types compatible with this data are shown"
+            "chart_type", options=dropdown_options, index=current_idx,
+            key=f"chart_select_{chart_key}", label_visibility="collapsed",
+            help="Only compatible chart types shown"
         )
-
         if selected != chart_type:
             new_path, error = regenerate_chart(result, selected, question)
             if new_path:
-                chart_path = new_path
-                chart_type = selected
+                chart_path, chart_type = new_path, selected
                 if msg_idx >= 0:
                     st.session_state.chart_overrides[msg_idx] = {
-                        "chart_type": selected,
-                        "chart_path": new_path
+                        "chart_type": selected, "chart_path": new_path
                     }
-                st.rerun()  # force immediate badge + chart refresh
+                st.rerun()
             else:
                 st.markdown(
-                    f'<div style="font-size:11px;color:#e05a5a;font-family:IBM Plex Mono,monospace;'
-                    f'padding:4px 0">{error}</div>',
+                    f'<div style="font-size:10px;color:#ff4f4f;font-family:Space Mono,monospace;padding:4px 0">{error}</div>',
                     unsafe_allow_html=True
                 )
 
-    # ── Chart with border wrapper ──
     try:
         with open(chart_path, "r", encoding="utf-8") as f:
             chart_html = f.read()
-
         st.markdown('<div class="chart-wrapper">', unsafe_allow_html=True)
-        st.components.v1.html(chart_html, height=430)
+        st.components.v1.html(chart_html, height=420)
         st.markdown('</div>', unsafe_allow_html=True)
-
         st.download_button(
-            label="↓ Download Chart",
+            label="↓ Export Chart",
             data=chart_html.encode("utf-8"),
             file_name=f"chart_{chart_key}.html",
             mime="text/html",
@@ -596,39 +800,72 @@ def render_chart(chart_path: str, chart_type: str, result: list, question: str,
         return False
 
 
-def render_table(result: list, sql: str, slider_key: str):
-    """Render data table with CSV download and SQL expander."""
+def _get_full_csv(sql: str) -> bytes:
+    """Re-execute SQL without LIMIT to get complete dataset for CSV export."""
+    try:
+        # Strip any LIMIT clause we added for UI display
+        import re as _re
+        full_sql = _re.sub(r'\s+LIMIT\s+\d+\s*;?\s*$', ';', sql.strip(), flags=_re.IGNORECASE)
+        if not full_sql.endswith(';'):
+            full_sql += ';'
+        from app.core.database import run_query
+        df_full = run_query(full_sql)
+        return df_full.to_csv(index=False).encode("utf-8")
+    except Exception as e:
+        logger.error(f"Full CSV export failed: {e}")
+        return b""
+
+
+def render_table(result, sql, slider_key):
     if not result:
         return False
     df = pd.DataFrame(result)
     if df.empty:
         return False
 
-    st.markdown('<div class="section-label">DATA TABLE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Data</div>', unsafe_allow_html=True)
+
+    n_rows = len(df)
+    # Capped if we hit the 100-row UI limit
+    is_capped = n_rows >= 100
+
+    if is_capped:
+        st.markdown(
+            f'<div class="row-limit-banner">Showing first {n_rows:,} rows · CSV export contains full dataset</div>',
+            unsafe_allow_html=True
+        )
 
     col_a, col_b = st.columns([3, 1])
     with col_a:
         st.markdown(
-            f'<div style="font-family:IBM Plex Mono,monospace;font-size:11px;color:#999">'
-            f'{len(df)} rows</div>', unsafe_allow_html=True
+            f'<div style="font-family:Space Mono,monospace;font-size:10px;color:#3a5068">'
+            f'{n_rows:,} rows · {len(df.columns)} columns</div>',
+            unsafe_allow_html=True
         )
     with col_b:
-        st.download_button(
-            label="↓ CSV",
-            data=df.to_csv(index=False).encode("utf-8"),
-            file_name="query_result.csv",
-            mime="text/csv",
-            key=f"dl_{slider_key}"
-        )
+        if is_capped and sql:
+            # Re-execute without LIMIT — gives user the complete dataset
+            csv_data = _get_full_csv(sql)
+            st.download_button(
+                label="↓ Full CSV",
+                data=csv_data if csv_data else df.to_csv(index=False).encode("utf-8"),
+                file_name="query_result_full.csv",
+                mime="text/csv",
+                key=f"dl_{slider_key}"
+            )
+        else:
+            st.download_button(
+                label="↓ CSV",
+                data=df.to_csv(index=False).encode("utf-8"),
+                file_name="query_result.csv",
+                mime="text/csv",
+                key=f"dl_{slider_key}"
+            )
 
-    max_rows = len(df)
-    rows = st.slider("Rows", min_value=5, max_value=max_rows,
-                     value=min(20, max_rows), key=slider_key) if max_rows > 5 else max_rows
-
-    st.dataframe(df.head(rows), use_container_width=True)
+    st.dataframe(df, use_container_width=True)
 
     if sql:
-        with st.expander("Show SQL"):
+        with st.expander("▸ SQL Query"):
             st.code(sql, language="sql")
     return True
 
@@ -636,24 +873,21 @@ def render_table(result: list, sql: str, slider_key: str):
 def render_assistant_turn(insights, result, chart_path, sql, chart_type,
                           slider_key, question="", msg_idx=-1, agents_done=True):
     render_agent_pipeline(done=agents_done)
-
     if insights:
         render_insights(insights)
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
     has_chart = bool(chart_path and chart_type != "none")
     has_table = bool(result)
 
     if has_chart and has_table:
-        col1, col2 = st.columns([1.3, 1])
+        col1, col2 = st.columns([1.4, 1])
         with col1:
-            render_chart(chart_path, chart_type, result, question,
-                         chart_key=slider_key, msg_idx=msg_idx)
+            render_chart(chart_path, chart_type, result, question, chart_key=slider_key, msg_idx=msg_idx)
         with col2:
             render_table(result, sql, slider_key)
     elif has_chart:
-        render_chart(chart_path, chart_type, result, question,
-                     chart_key=slider_key, msg_idx=msg_idx)
+        render_chart(chart_path, chart_type, result, question, chart_key=slider_key, msg_idx=msg_idx)
     elif has_table:
         render_table(result, sql, slider_key)
 
@@ -662,25 +896,29 @@ def render_assistant_turn(insights, result, chart_path, sql, chart_type,
 # SIDEBAR
 # ─────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-logo">
-        <h2>AI Analyst</h2>
-        <span>Multi-Agent · NL→SQL</span>
+    n_q = st.session_state.query_count
+    st.markdown(f"""
+    <div class="sidebar-brand">
+        <div class="logo-mark">QueryMind</div>
+        <div class="logo-sub">AI Analyst · NL→SQL</div>
+        <div class="status-line">
+            <span class="status-dot"></span>OLIST · MySQL · llama-3.3-70b
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="sidebar-section">Example Questions</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-section">Example Queries</div>', unsafe_allow_html=True)
 
     example_questions = [
-    "What is the total revenue by customer state?",
-    "Which product categories generate the most revenue?",
-    "What is the monthly order trend throughout 2017 and 2018?",
-    "Which sellers have the highest number of delivered orders?",
-    "What is the average delivery time by customer state?",
-    "What percentage of orders were delivered late compared to the estimated date?",
-    "What is the average review score by product category?",
-    "Which payment methods are most popular and what is their average order value?",
-]
+        "What is the total revenue by customer state?",
+        "Which product categories generate the most revenue?",
+        "What is the monthly order trend throughout 2017 and 2018?",
+        "Which sellers have the highest number of delivered orders?",
+        "What is the average delivery time by customer state?",
+        "What percentage of orders were delivered late compared to the estimated date?",
+        "What is the average review score by product category?",
+        "Which payment methods are most popular and what is their average order value?",
+    ]
 
     for i, q in enumerate(example_questions):
         if st.button(q, key=f"ex_{i}",
@@ -690,13 +928,22 @@ with st.sidebar:
             st.rerun()
 
     st.markdown('<div class="sidebar-section">Session</div>', unsafe_allow_html=True)
+
+    if n_q > 0:
+        st.markdown(
+            f'<div style="font-family:Space Mono,monospace;font-size:10px;color:#3a5068;margin-bottom:8px">'
+            f'{n_q} quer{"y" if n_q == 1 else "ies"} this session</div>',
+            unsafe_allow_html=True
+        )
+
     st.markdown('<div class="new-session-btn">', unsafe_allow_html=True)
-    if st.button("⟳ New Session", key="new_session"):
-        logger.info(f"Creating new session: {st.session_state.session_id} -> {str(uuid.uuid4())}")
+    if st.button("⟳  Clear Session", key="new_session"):
+        logger.info(f"New session started")
         st.session_state.messages = []
         st.session_state.session_id = str(uuid.uuid4())
         st.session_state.pending_prompt = None
         st.session_state.chart_overrides = {}
+        st.session_state.query_count = 0
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -704,22 +951,35 @@ with st.sidebar:
 # ─────────────────────────────────────────
 # MAIN HEADER
 # ─────────────────────────────────────────
-st.markdown("""
-<div style="padding: 8px 0 24px 0; border-bottom: 1px solid #1a1a1a; margin-bottom: 24px;">
-    <h1 style="font-family: IBM Plex Sans, sans-serif; font-size: 28px; font-weight: 600;
-               color: #f0f0f0; margin: 0; letter-spacing: -0.5px;">
-        AI Analyst Agent
-    </h1>
-    <p style="font-family: IBM Plex Mono, monospace; font-size: 11px; color: #555;
-              letter-spacing: 1px; text-transform: uppercase; margin: 4px 0 0 0; color: #888 !important;">
-        Conversational multi-agent analytics
-    </p>
+n_q = st.session_state.query_count
+st.markdown(f"""
+<div class="main-header">
+    <div>
+        <div class="main-title">Query<span>Mind</span></div>
+        <div class="main-subtitle">Conversational multi-agent analytics engine</div>
+    </div>
+    <div class="header-stats">
+        <div class="header-stat">
+            <div class="val">9</div>
+            <div class="lbl">Tables</div>
+        </div>
+        <div class="header-divider"></div>
+        <div class="header-stat">
+            <div class="val">1.4M</div>
+            <div class="lbl">Rows</div>
+        </div>
+        <div class="header-divider"></div>
+        <div class="header-stat">
+            <div class="val">{n_q}</div>
+            <div class="lbl">Queries</div>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────
-# PIPELINE HTML BUILDER (used during live streaming)
+# PIPELINE HTML BUILDER
 # ─────────────────────────────────────────
 AGENT_STEPS = [("contextualizer","CONTEXT"),("planner","PLANNER"),
                ("sql_agent","SQL"),("analysis","ANALYSIS"),("viz","VIZ")]
@@ -737,17 +997,30 @@ def render_pipeline_html(current_step_idx: int, done: bool = False) -> str:
 
 
 # ─────────────────────────────────────────
+# EMPTY STATE
+# ─────────────────────────────────────────
+if not st.session_state.messages:
+    st.markdown("""
+    <div class="empty-state">
+        <div class="bigmark">⬡</div>
+        <h3>Ready for analysis</h3>
+        <p>Ask a question in plain English. The agent pipeline will generate SQL,
+        execute it against the Olist dataset, and return insights with a visualization.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────
 # CHAT HISTORY
 # ─────────────────────────────────────────
 for idx, msg in enumerate(st.session_state.messages):
     if msg["role"] == "user":
-        st.markdown(
-            f'<div class="user-question">'
-            f'<div class="bot-icon">👤</div>'
-            f'{msg["content"]}'
-            f'</div>', unsafe_allow_html=True
-        )
-        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="user-bubble">
+            <div class="user-avatar">👤</div>
+            <div class="user-text">{msg["content"]}</div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
         render_assistant_turn(
             insights=msg.get("insights", ""),
@@ -760,10 +1033,7 @@ for idx, msg in enumerate(st.session_state.messages):
             msg_idx=idx,
             agents_done=True
         )
-        st.markdown(
-            "<div style='height:32px;border-bottom:1px solid #1a1a1a;margin-bottom:32px'></div>",
-            unsafe_allow_html=True
-        )
+        st.markdown('<div class="convo-divider"></div>', unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────
@@ -781,22 +1051,21 @@ else:
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.query_count += 1
 
-    st.markdown(
-        f'<div class="user-question">'
-        f'<div class="bot-icon">👤</div>'
-        f'{prompt}'
-        f'</div>', unsafe_allow_html=True
-    )
-    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="user-bubble">
+        <div class="user-avatar">👤</div>
+        <div class="user-text">{prompt}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    pipeline_placeholder = st.empty()
-    insights_placeholder = st.empty()
+    pipeline_placeholder  = st.empty()
+    insights_placeholder  = st.empty()
     pipeline_placeholder.markdown(render_pipeline_html(0), unsafe_allow_html=True)
 
     data = {}
-
-    logger.info(f"Sending API request: session={st.session_state.session_id}, question='{prompt[:50]}...' if len(prompt) > 50 else prompt")
+    logger.info(f"Sending API request: session={st.session_state.session_id}, question='{prompt[:50]}'")
 
     try:
         with requests.get(
@@ -824,19 +1093,18 @@ if prompt:
                 elif etype == "result":
                     data = event
                     pipeline_placeholder.markdown(render_pipeline_html(0, done=True), unsafe_allow_html=True)
-
-                    # Stream insights word by word
                     raw_insights = sanitize_text(data.get("insights", ""))
                     words = raw_insights.split()
                     streamed = ""
                     for w in words:
                         streamed += w + " "
                         insights_placeholder.markdown(
-                            f'<div style="font-size:13px;color:#d8d8d8;line-height:1.7;padding:4px 0">'
+                            f'<div style="font-size:13px;color:#ffffff;line-height:1.7;'
+                            f'font-family:DM Sans,sans-serif;padding:4px 0">'
                             f'{streamed}<span class="typing-cursor"></span></div>',
                             unsafe_allow_html=True
                         )
-                        time.sleep(0.018)
+                        time.sleep(0.016)
                     insights_placeholder.empty()
 
                 elif etype == "error":
@@ -849,33 +1117,30 @@ if prompt:
         st.error(f"Connection error: {e}")
         st.stop()
 
-    insights  = data.get("insights", "")
-    result    = data.get("result", [])
+    insights   = data.get("insights", "")
+    result     = data.get("result", [])
     chart_path = data.get("chart_path", "")
     chart_type = data.get("chart_type", "")
-    sql       = data.get("sql", "")
+    sql        = data.get("sql", "")
 
-    # Figure out what index this assistant message will be
-    live_msg_idx = len(st.session_state.messages)  # will be appended next
-    live_key = f"live_{uuid.uuid4()}"
+    live_msg_idx = len(st.session_state.messages)
+    live_key     = f"live_{uuid.uuid4()}"
 
     if insights:
         render_insights(insights)
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
     has_chart = bool(chart_path and chart_type != "none")
     has_table = bool(result)
 
     if has_chart and has_table:
-        col1, col2 = st.columns([1.3, 1])
+        col1, col2 = st.columns([1.4, 1])
         with col1:
-            render_chart(chart_path, chart_type, result, prompt,
-                         chart_key=live_key, msg_idx=live_msg_idx)
+            render_chart(chart_path, chart_type, result, prompt, chart_key=live_key, msg_idx=live_msg_idx)
         with col2:
             render_table(result, sql, live_key)
     elif has_chart:
-        render_chart(chart_path, chart_type, result, prompt,
-                     chart_key=live_key, msg_idx=live_msg_idx)
+        render_chart(chart_path, chart_type, result, prompt, chart_key=live_key, msg_idx=live_msg_idx)
     elif has_table:
         render_table(result, sql, live_key)
 

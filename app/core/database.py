@@ -56,7 +56,29 @@ def run_query(sql: str) -> pd.DataFrame:
         rows   = cursor.fetchall()
 
         # Build DataFrame — same shape as DuckDB's fetchdf()
-        result         = pd.DataFrame(rows)
+        result = pd.DataFrame(rows)
+
+        # Convert MySQL-specific types that are not JSON serializable:
+        # - decimal.Decimal → float  (MySQL DECIMAL/NUMERIC columns)
+        # - datetime.timedelta → str (MySQL TIME columns)
+        import decimal, datetime
+        for col in result.columns:
+            if result.empty:
+                break
+            sample = result[col].dropna()
+            if sample.empty:
+                continue
+            first = sample.iloc[0]
+            if isinstance(first, decimal.Decimal):
+                result[col] = result[col].apply(
+                    lambda x: float(x) if isinstance(x, decimal.Decimal) else x
+                )
+            elif isinstance(first, datetime.timedelta):
+                result[col] = result[col].astype(str)
+
+        # Replace NaN with None — NaN is not JSON serializable, None becomes null
+        result = result.where(result.notna(), other=None)
+
         execution_time = time.time() - start_time
 
         log_query_execution(logger, sql, execution_time, len(result))

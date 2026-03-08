@@ -106,12 +106,13 @@ SCHEMA_METADATA = [
         "table": "products",
         "description": (
             "Product catalog. One row per product. "
-            "Category names are in Portuguese — JOIN product_category_translation for English names."
+            "IMPORTANT: There is NO product_name column. The only way to group products is by product_category_name. "
+            "JOIN product_category_translation to get English category names."
         ),
         "columns": {
             "product_id":                  "Unique product identifier (PK). Links to order_items.product_id.",
-            "product_category_name":       "Product category in Portuguese. JOIN product_category_translation to get English name.",
-            "product_name_lenght":         "Character length of product name (note: intentional typo in source data).",
+            "product_category_name":       "ONLY product grouping column available. Use this when user asks to split/group by products. JOIN product_category_translation for English names. CRITICAL: there is NO product_name column in this table — never use p.product_name.",
+            "product_name_lenght":         "Character length of product name text (intentional typo in source). NOT a product name — never use for grouping.",
             "product_description_lenght":  "Character length of product description (note: intentional typo in source data).",
             "product_photos_qty":          "Number of product photos in the listing.",
             "product_weight_g":            "Product weight in grams.",
