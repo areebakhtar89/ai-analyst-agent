@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI Analyst Agent is a conversational multi-agent analytics system that transforms natural language questions into SQL queries, executes them against a database, and provides intelligent visualizations and insights. The system uses LangGraph for orchestration and combines multiple specialized agents to deliver comprehensive data analysis.
+The AI Analyst Agent is a conversational multi-agent analytics system that transforms natural language questions into SQL queries, executes them against a database, and provides intelligent visualizations and insights. The system uses LangGraph for orchestration and combines multiple specialized agents to deliver comprehensive data analysis.     
 
 ## Technical Stack
 
