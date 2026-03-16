@@ -23,7 +23,7 @@ langchain-google-genai - Google AI integration
 langgraph             - Multi-agent workflow orchestration
 sentence-transformers - Text embeddings
 scikit-learn          - Machine learning utilities
-groq                  - LLM API client (in llm.py)
+groq                  - LLM API client (in llm.py)  
 ```
 
 ### LLM Configuration
@@ -96,6 +96,7 @@ User Question → Contextualizer → Planner → SQL Agent → Analysis → Visu
                                     ↓
                               Error Fix Agent (retry loop)
 ```
+
 
 ### Agent Responsibilities
 
