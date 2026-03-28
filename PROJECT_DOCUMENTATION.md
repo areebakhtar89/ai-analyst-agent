@@ -97,7 +97,7 @@ User Question → Contextualizer → Planner → SQL Agent → Analysis → Visu
                               Error Fix Agent (retry loop)
 ```
 
-
+ 
 ### Agent Responsibilities
 
 #### 1. Contextualizer Agent

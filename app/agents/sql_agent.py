@@ -7,8 +7,7 @@ from app.core.logging_config import setup_logger, log_agent_activity
 
 logger = setup_logger(__name__)
 
-# Columns that do NOT exist in the database.
-# LLM must never generate these — they cause immediate SQL errors.
+# Olist-specific forbidden columns — only injected when using fallback schema
 FORBIDDEN_COLUMNS = """
 COLUMNS THAT DO NOT EXIST — NEVER USE THESE:
 - product_name / p.product_name         → does not exist. Use product_category_name instead.
@@ -18,6 +17,7 @@ COLUMNS THAT DO NOT EXIST — NEVER USE THESE:
 - product_description_length             → does not exist. Use product_description_lenght (typo is intentional).
 - product_name_length                    → does not exist. Use product_name_lenght (typo is intentional).
 """
+
 
 def clean_sql(text: str) -> str:
     """Extract only the SQL query from LLM output."""
@@ -32,8 +32,10 @@ def clean_sql(text: str) -> str:
     return text.strip()
 
 
+# ── Hardcoded Olist schema helpers (fallback) ─────────────────────────────────
+
 def build_schema_context(tables):
-    """Build schema context including column descriptions and JOIN hints."""
+    """Build schema context from hardcoded schema_metadata.py (Olist fallback)."""
     context = ""
     for table in SCHEMA_METADATA:
         if table["table"] in tables:
@@ -50,23 +52,96 @@ def build_schema_context(tables):
 
 
 def get_full_schema_context():
-    """Return full schema context for all tables (used by error fix agent)."""
-    all_tables = [t["table"] for t in SCHEMA_METADATA]
-    return build_schema_context(all_tables)
+    """
+    Full schema context for all tables.
+    Called by error_fix_agent — uses live schema if available, else Olist fallback.
+    """
+    from app.core.schema_store import is_live_schema_available, get_full_schema_context_live
+    if is_live_schema_available():
+        logger.debug("[sql_agent] get_full_schema_context → LIVE schema")
+        return get_full_schema_context_live()
+    logger.debug("[sql_agent] get_full_schema_context → FALLBACK Olist schema")
+    return build_schema_context([t["table"] for t in SCHEMA_METADATA])
 
+
+# ── Schema + syntax selection ─────────────────────────────────────────────────
+
+def _resolve_schema(question: str) -> tuple[str, str, str, bool]:
+    """
+    Decide which schema and syntax rules to use.
+
+    Returns:
+        schema_context : str   — table/column block for LLM prompt
+        join_hints     : str   — JOIN relationship hints (Olist only)
+        forbidden      : str   — forbidden columns block (Olist only)
+        is_live        : bool  — True if using live DB schema
+    """
+    from app.core.schema_store import (
+        is_live_schema_available,
+        get_relevant_tables_live,
+        get_schema_context,
+        get_db_type,
+    )
+
+    if is_live_schema_available():
+        relevant       = get_relevant_tables_live(question)
+        schema_context = get_schema_context(relevant)
+        db_type        = get_db_type() or "mysql"
+        logger.info(f"[sql_agent] LIVE schema ({db_type.upper()}) — tables: {relevant}")
+        # No hardcoded JOIN hints or forbidden columns for unknown DBs
+        return schema_context, "", "", True
+
+    else:
+        relevant       = get_relevant_tables(question)   # sentence-transformer based
+        schema_context = build_schema_context(relevant)
+        logger.info(f"[sql_agent] FALLBACK Olist schema — tables: {relevant}")
+        return schema_context, JOIN_RELATIONSHIPS, FORBIDDEN_COLUMNS, False
+
+
+def _syntax_rules(db_type: str) -> str:
+    """DB-specific syntax block injected into the LLM prompt."""
+    if db_type == "postgresql":
+        return """DB SYNTAX (PostgreSQL):
+- Date format: TO_CHAR(col, 'YYYY-MM') monthly, TO_CHAR(col, 'YYYY') yearly
+- String concat: || or CONCAT()
+- Case-insensitive match: ILIKE"""
+    elif db_type == "sqlite":
+        return """DB SYNTAX (SQLite):
+- Date format: STRFTIME('%Y-%m', col) monthly, STRFTIME('%Y', col) yearly
+- String concat: || operator
+- No FULL OUTER JOIN — use LEFT JOIN + UNION"""
+    elif db_type == "duckdb":
+        return """DB SYNTAX (DuckDB):
+- Date format: STRFTIME(col, '%Y-%m') monthly
+- String concat: || or CONCAT()"""
+    else:  # mysql default
+        return """DB SYNTAX (MySQL):
+- Date format: DATE_FORMAT(col, '%Y-%m') monthly, DATE_FORMAT(col, '%Y') yearly
+- String concat: CONCAT() — do NOT use ||
+- Do NOT use STRFTIME() — that is DuckDB/SQLite syntax"""
+
+
+# ── SQL generation ────────────────────────────────────────────────────────────
 
 def generate_sql(question: str) -> str:
-    """Generate SQL query from natural language question."""
-    logger.info(f"Generating SQL for question: '{question[:50]}...' if len(question) > 50 else question")
-
+    logger.info(f"Generating SQL for: '{question[:60]}'")
     try:
         llm = get_llm()
-        relevant_tables = get_relevant_tables(question)
-        schema_context  = build_schema_context(relevant_tables)
 
-        prompt = """You are a senior data analyst expert in MySQL SQL.
+        schema_context, join_hints, forbidden, is_live = _resolve_schema(question)
 
-Convert the user question into a correct MySQL query.
+        # Determine DB type for syntax rules
+        if is_live:
+            from app.core.schema_store import get_db_type
+            db_type = get_db_type() or "mysql"
+        else:
+            db_type = "mysql"
+
+        syntax = _syntax_rules(db_type)
+
+        prompt = f"""You are a senior data analyst expert in {db_type.upper()} SQL.
+
+Convert the user question into a correct {db_type.upper()} query.
 
 STRICT OUTPUT RULES:
 - Return ONLY the SQL query. Nothing else.
@@ -74,111 +149,55 @@ STRICT OUTPUT RULES:
 - Must start with SELECT or WITH.
 - Must end with a semicolon.
 
-""" + FORBIDDEN_COLUMNS + """
+{forbidden}
 
-""" + JOIN_RELATIONSHIPS + """
+{join_hints}
 
-MYSQL SYNTAX RULES:
-- For monthly grouping use:  DATE_FORMAT(order_purchase_timestamp, '%Y-%m')
-- For yearly grouping use:   DATE_FORMAT(order_purchase_timestamp, '%Y')
-- For date truncation use:   DATE(column_name)
-- Do NOT use STRFTIME() — that is DuckDB syntax, not MySQL.
-- Do NOT use || for string concat — use CONCAT() instead.
+{syntax}
 
 QUERY LOGIC RULES:
-
-1. TOP N OVERALL (e.g. "top 5 categories by revenue"):
-   Use ORDER BY + LIMIT N.
-   Example:
-   SELECT t.product_category_name_english, SUM(op.payment_value) AS total_revenue
-   FROM order_items oi
-   JOIN products p ON oi.product_id = p.product_id
-   JOIN product_category_translation t ON p.product_category_name = t.product_category_name
-   JOIN order_payments op ON oi.order_id = op.order_id
-   GROUP BY t.product_category_name_english
-   ORDER BY total_revenue DESC LIMIT 10;
-
-2. TOP N PER GROUP (e.g. "top 5 categories per state"):
-   Use a CTE with ROW_NUMBER() OVER (PARTITION BY <group> ORDER BY <metric> DESC).
-   Example:
-   WITH ranked AS (
-     SELECT c.customer_state, t.product_category_name_english,
-            SUM(op.payment_value) AS revenue,
-            ROW_NUMBER() OVER (PARTITION BY c.customer_state ORDER BY SUM(op.payment_value) DESC) AS rn
-     FROM orders o
-     JOIN customers c ON o.customer_id = c.customer_id
-     JOIN order_items oi ON o.order_id = oi.order_id
-     JOIN products p ON oi.product_id = p.product_id
-     JOIN product_category_translation t ON p.product_category_name = t.product_category_name
-     JOIN order_payments op ON o.order_id = op.order_id
-     GROUP BY c.customer_state, t.product_category_name_english
-   )
-   SELECT customer_state, product_category_name_english, revenue
-   FROM ranked WHERE rn <= 5
-   ORDER BY customer_state, revenue DESC;
-
-3. TRENDS OVER TIME (e.g. "monthly revenue", "monthly order count"):
-   Group by time using DATE_FORMAT. Do NOT add LIMIT.
-   Example:
-   SELECT DATE_FORMAT(order_purchase_timestamp, '%Y-%m') AS month,
-          COUNT(*) AS order_count
-   FROM orders
-   GROUP BY month
-   ORDER BY month;
-
-4. FULL BREAKDOWN (e.g. "revenue by state", "sales by category"):
-   Return all groups. Do NOT add LIMIT.
-
-5. PRODUCT QUESTIONS:
-   There is NO product_name column. Always group by product_category_name.
-   Always JOIN product_category_translation to show English names.
+1. TOP N OVERALL: Use ORDER BY + LIMIT N.
+2. TOP N PER GROUP: Use CTE with ROW_NUMBER() OVER (PARTITION BY <group> ORDER BY <metric> DESC).
+3. TRENDS OVER TIME: Group by date function. Do NOT add LIMIT.
+4. FULL BREAKDOWN (by state/category etc): Return all groups. Do NOT add LIMIT.
+5. PRODUCT QUESTIONS (Olist): No product_name column exists. Always group by product_category_name. Always JOIN product_category_translation for English names.
 
 Available tables and columns:
-""" + schema_context + """
+{schema_context}
 
 User question:
-""" + question
+{question}"""
 
         response = llm.invoke(prompt)
         sql = clean_sql(response.content)
 
-        # Cap rows sent to UI — keeps API fast and UI clean.
-        # Aggregated queries (GROUP BY) already return small result sets — no cap needed.
+        # Cap non-aggregated queries at 100 rows for UI performance
         sql_upper = sql.upper()
-        has_limit = "LIMIT" in sql_upper
-        is_aggregated = "GROUP BY" in sql_upper
-        if not has_limit and not is_aggregated:
+        if "LIMIT" not in sql_upper and "GROUP BY" not in sql_upper:
             sql = sql.rstrip(";").rstrip() + " LIMIT 100;"
-            logger.info("No LIMIT on non-aggregated query — capped at 100 rows for UI")
+            logger.info("[sql_agent] Capped non-aggregated query at 100 rows")
 
-        logger.info(f"SQL generated successfully: {len(sql)} characters")
-        logger.debug(f"Generated SQL: {sql}")
+        logger.info(f"[sql_agent] SQL generated ({len(sql)} chars)")
+        logger.debug(f"[sql_agent] SQL: {sql}")
         return sql
 
     except Exception as e:
-        logger.error(f"SQL generation failed: {str(e)}")
+        logger.error(f"[sql_agent] SQL generation failed: {e}")
         return f"-- Error generating SQL: {str(e)}"
 
 
 def run_agent(question: str):
-    """Main SQL agent function that generates and executes SQL."""
     log_agent_activity(logger, "SQL Agent", "Starting", {"question": question})
-
     try:
         sql = generate_sql(question)
-
         if sql.startswith("-- Error"):
-            logger.error("SQL generation failed, skipping execution")
             log_agent_activity(logger, "SQL Agent", "SQL generation failed")
             return {"question": question, "sql": sql, "result": []}
-
         result = execute_sql(sql)
-
-        logger.info(f"SQL executed successfully: {len(result) if result else 0} rows returned")
+        logger.info(f"[sql_agent] Executed: {len(result) if result else 0} rows")
         log_agent_activity(logger, "SQL Agent", "Success", {"result_rows": len(result) if result else 0})
         return {"question": question, "sql": sql, "result": result}
-
     except Exception as e:
-        logger.error(f"SQL agent failed: {str(e)}")
+        logger.error(f"[sql_agent] Failed: {e}")
         log_agent_activity(logger, "SQL Agent", "Error", {"error": str(e)})
         return {"question": question, "sql": f"-- Error: {str(e)}", "result": []}
