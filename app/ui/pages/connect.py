@@ -32,7 +32,7 @@ st.markdown("""
 :root {
     --bg:#080b0f; --bg2:#0d1117; --bg3:#131920;
     --border:#1c2635; --border2:#243042;
-    --accent:#00d4aa; --danger:#ff4f4f; --green:#00e676;
+    --accent:#ffb300; --danger:#ff4f4f; --green:#ffb300;
     --text:#ffffff; --text-dim:#cccccc; --text-muted:#3a5068;
     --mono:'Space Mono',monospace; --sans:'DM Sans',sans-serif;
 }
@@ -94,8 +94,8 @@ html,body,[class*="css"]{ font-family:var(--sans); background:var(--bg) !importa
 .ai-btn button{ background:#0a1e18 !important; border:1px solid var(--accent) !important;
                 color:var(--accent) !important; font-size:10px !important;
                 font-family:var(--mono) !important; padding:4px 10px !important; }
-.save-btn button{ background:#0a1420 !important; border:1px solid #4d9fff !important;
-                  color:#4d9fff !important; font-size:10px !important;
+.save-btn button{ background:#0a1420 !important; border:1px solid #ffffff !important;
+                  color:#ffffff !important; font-size:10px !important;
                   font-family:var(--mono) !important; }
 
 [data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea{
@@ -461,7 +461,7 @@ if st.session_state.step >= 3:
                 with lc:
                     st.markdown(
                         f'<div style="font-family:Space Mono,monospace;font-size:11px;'
-                        f'color:#00d4aa;margin-bottom:2px">{cname} '
+                        f'color:#ffb300;margin-bottom:2px">{cname} '
                         f'<span style="color:#3a5068;font-size:9px">({ctype})</span></div>',
                         unsafe_allow_html=True)
                     # key intentionally omitted — value always driven by session_state

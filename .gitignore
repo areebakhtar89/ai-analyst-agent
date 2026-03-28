@@ -2,7 +2,6 @@
 data/charts/
 data/*.db
 data/*.duckdb
-app/data/raw/*.csv
 
 # Logs
 logs/
@@ -13,3 +12,6 @@ __pycache__/
 *.pyo
 .env
 venv/
+
+# LinkedIn post files
+linkedin_post*.md

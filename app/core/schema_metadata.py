@@ -86,15 +86,17 @@ SCHEMA_METADATA = [
         "table": "customers",
         "description": (
             "Customer demographic and location data. One row per customer per order. "
+            "PRIMARY SOURCE FOR CUSTOMER REGION ANALYSIS - contains customer_state for geographic breakdown. "
             "IMPORTANT: One physical customer can have multiple customer_ids — "
-            "use customer_unique_id with COUNT(DISTINCT) for true unique customer counts."
+            "use customer_unique_id with COUNT(DISTINCT) for true unique customer counts. "
+            "Use this table for 'sales by region', 'revenue by state', 'customer location' queries."
         ),
         "columns": {
             "customer_id":              "Order-level customer ID (PK). Links to orders.customer_id.",
             "customer_unique_id":       "True unique customer identifier across all orders. Use COUNT(DISTINCT customer_unique_id) for unique customer counts.",
             "customer_zip_code_prefix": "5-digit Brazilian zip code prefix. Links to geolocation.geolocation_zip_code_prefix.",
             "customer_city":            "City where the customer is located.",
-            "customer_state":           "Brazilian state abbreviation (SP, RJ, MG, etc.). Primary column for geographic/regional analysis.",
+            "customer_state":           "Brazilian state abbreviation (SP, RJ, MG, etc.). PRIMARY COLUMN for customer geographic/regional analysis.",
         },
         "joins": [
             "JOIN orders o ON customers.customer_id = o.customer_id",

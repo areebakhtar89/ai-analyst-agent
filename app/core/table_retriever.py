@@ -22,9 +22,25 @@ table_embeddings = model.encode(table_texts)
 logger.debug(f"Precomputed embeddings for {len(table_names)} tables")
 
 
-def get_relevant_tables(query, top_k=2):
+def get_relevant_tables(query, top_k=3):
     logger.debug(f"Finding relevant tables for query: {query[:50] + '...' if len(query) > 50 else query}")
     
+    # Enhanced logic for region queries - prioritize customers over sellers
+    query_lower = query.lower()
+    if any(keyword in query_lower for keyword in ['region', 'state', 'geographic', 'location', 'area']):
+        # For customer-focused region queries, always include customers table
+        if any(keyword in query_lower for keyword in ['customer', 'sales by', 'revenue by', 'overall']):
+            # Force customers table for customer region analysis
+            customer_tables = ['customers', 'order_items', 'orders']
+            logger.debug(f"Customer region query detected, prioritizing: {customer_tables}")
+            return customer_tables[:top_k]
+        elif any(keyword in query_lower for keyword in ['seller', 'merchant']):
+            # Seller-focused region queries
+            seller_tables = ['sellers', 'order_items']
+            logger.debug(f"Seller region query detected, prioritizing: {seller_tables}")
+            return seller_tables[:top_k]
+    
+    # Default semantic matching for other queries
     query_embedding = model.encode([query])
     scores = cosine_similarity(query_embedding, table_embeddings)[0]
 

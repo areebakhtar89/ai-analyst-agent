@@ -42,14 +42,14 @@ st.markdown("""
     --bg3:       #131920;
     --border:    #1c2635;
     --border2:   #243042;
-    --accent:    #00d4aa;
+    --accent:    #ffb300;
     --accent2:   #f0a500;
-    --accent3:   #4d9fff;
+    --accent3:   #ffffff;
     --danger:    #ff4f4f;
     --text:      #ffffff;
     --text-dim:  #cccccc;
     --text-muted:#3a5068;
-    --green:     #00e676;
+    --green:     #ffb300;
     --mono:      'Space Mono', monospace;
     --sans:      'DM Sans', sans-serif;
 }
