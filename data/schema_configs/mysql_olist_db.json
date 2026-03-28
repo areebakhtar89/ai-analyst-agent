@@ -1,0 +1,338 @@
+{
+  "tables": [
+    {
+      "table": "customers",
+      "row_count": 99441,
+      "selected": true,
+      "description": "",
+      "columns": [
+        {
+          "name": "customer_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "customer_unique_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "customer_zip_code_prefix",
+          "type": "varchar(10)",
+          "description": ""
+        },
+        {
+          "name": "customer_city",
+          "type": "varchar(100)",
+          "description": ""
+        },
+        {
+          "name": "customer_state",
+          "type": "varchar(5)",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "geolocation",
+      "row_count": 1000163,
+      "selected": false,
+      "description": "",
+      "columns": [
+        {
+          "name": "geolocation_zip_code_prefix",
+          "type": "varchar(10)",
+          "description": ""
+        },
+        {
+          "name": "geolocation_lat",
+          "type": "float",
+          "description": ""
+        },
+        {
+          "name": "geolocation_lng",
+          "type": "float",
+          "description": ""
+        },
+        {
+          "name": "geolocation_city",
+          "type": "varchar(100)",
+          "description": ""
+        },
+        {
+          "name": "geolocation_state",
+          "type": "varchar(5)",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "order_items",
+      "row_count": 112650,
+      "selected": true,
+      "description": "",
+      "columns": [
+        {
+          "name": "order_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "order_item_id",
+          "type": "int",
+          "description": ""
+        },
+        {
+          "name": "product_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "seller_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "shipping_limit_date",
+          "type": "datetime",
+          "description": ""
+        },
+        {
+          "name": "price",
+          "type": "float",
+          "description": ""
+        },
+        {
+          "name": "freight_value",
+          "type": "float",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "order_payments",
+      "row_count": 103886,
+      "selected": false,
+      "description": "",
+      "columns": [
+        {
+          "name": "order_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "payment_sequential",
+          "type": "int",
+          "description": ""
+        },
+        {
+          "name": "payment_type",
+          "type": "varchar(30)",
+          "description": ""
+        },
+        {
+          "name": "payment_installments",
+          "type": "int",
+          "description": ""
+        },
+        {
+          "name": "payment_value",
+          "type": "float",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "order_reviews",
+      "row_count": 98410,
+      "selected": true,
+      "description": "",
+      "columns": [
+        {
+          "name": "review_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "order_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "review_score",
+          "type": "int",
+          "description": ""
+        },
+        {
+          "name": "review_comment_title",
+          "type": "varchar(255)",
+          "description": ""
+        },
+        {
+          "name": "review_comment_message",
+          "type": "text",
+          "description": ""
+        },
+        {
+          "name": "review_creation_date",
+          "type": "datetime",
+          "description": ""
+        },
+        {
+          "name": "review_answer_timestamp",
+          "type": "datetime",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "orders",
+      "row_count": 99441,
+      "selected": true,
+      "description": "",
+      "columns": [
+        {
+          "name": "order_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "customer_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "order_status",
+          "type": "varchar(30)",
+          "description": ""
+        },
+        {
+          "name": "order_purchase_timestamp",
+          "type": "datetime",
+          "description": ""
+        },
+        {
+          "name": "order_approved_at",
+          "type": "datetime",
+          "description": ""
+        },
+        {
+          "name": "order_delivered_carrier_date",
+          "type": "datetime",
+          "description": ""
+        },
+        {
+          "name": "order_delivered_customer_date",
+          "type": "datetime",
+          "description": ""
+        },
+        {
+          "name": "order_estimated_delivery_date",
+          "type": "datetime",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "product_category_translation",
+      "row_count": 71,
+      "selected": true,
+      "description": "",
+      "columns": [
+        {
+          "name": "product_category_name",
+          "type": "varchar(100)",
+          "description": ""
+        },
+        {
+          "name": "product_category_name_english",
+          "type": "varchar(100)",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "products",
+      "row_count": 32951,
+      "selected": true,
+      "description": "",
+      "columns": [
+        {
+          "name": "product_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "product_category_name",
+          "type": "varchar(100)",
+          "description": ""
+        },
+        {
+          "name": "product_name_lenght",
+          "type": "int",
+          "description": ""
+        },
+        {
+          "name": "product_description_lenght",
+          "type": "int",
+          "description": ""
+        },
+        {
+          "name": "product_photos_qty",
+          "type": "int",
+          "description": ""
+        },
+        {
+          "name": "product_weight_g",
+          "type": "float",
+          "description": ""
+        },
+        {
+          "name": "product_length_cm",
+          "type": "float",
+          "description": ""
+        },
+        {
+          "name": "product_height_cm",
+          "type": "float",
+          "description": ""
+        },
+        {
+          "name": "product_width_cm",
+          "type": "float",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "table": "sellers",
+      "row_count": 3095,
+      "selected": true,
+      "description": "",
+      "columns": [
+        {
+          "name": "seller_id",
+          "type": "varchar(50)",
+          "description": ""
+        },
+        {
+          "name": "seller_zip_code_prefix",
+          "type": "varchar(10)",
+          "description": ""
+        },
+        {
+          "name": "seller_city",
+          "type": "varchar(100)",
+          "description": ""
+        },
+        {
+          "name": "seller_state",
+          "type": "varchar(5)",
+          "description": ""
+        }
+      ]
+    }
+  ],
+  "db_type": "mysql",
+  "db_name": "olist_db"
+}
